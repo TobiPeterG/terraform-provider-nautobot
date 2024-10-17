@@ -62,6 +62,11 @@ func dataSourcePrefixes() *schema.Resource {
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
+						"vlan_id": {
+							Description: "The UUID of the VLAN the prefix belongs to.",
+							Type:        schema.TypeString,
+							Computed:    true,
+						},
 						"created": {
 							Description: "The creation date of the prefix.",
 							Type:        schema.TypeString,
@@ -153,6 +158,12 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 
 		if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
 			itemMap["namespace_id"] = *prefix.Namespace.Id.String
+		}
+
+		if prefix.Vlan.IsSet() {
+			if vlan := prefix.Vlan.Get(); vlan != nil && vlan.Id != nil && vlan.Id.String != nil {
+				itemMap["vlan_id"] = *vlan.Id.String
+			}
 		}
 
 		list = append(list, itemMap)
