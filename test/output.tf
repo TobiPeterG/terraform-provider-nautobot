@@ -86,6 +86,10 @@ output "prefix_details" {
   value = data.nautobot_prefix.example
 }
 
+output "prefix_parent_details" {
+  value = data.nautobot_prefix.example_parent
+}
+
 output "prefix_id" {
   value = data.nautobot_prefix.example.id
 }

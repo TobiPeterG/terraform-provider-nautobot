@@ -43,6 +43,11 @@ data "nautobot_prefix" "example" {
   vlan_id = data.nautobot_vlan.example.id
 }
 
+data "nautobot_prefix" "example_parent" {
+  depends_on = [data.nautobot_prefix.example]
+  id = data.nautobot_prefix.example.parent_id
+}
+
 resource "nautobot_available_ip_address" "example" {
   prefix_id = data.nautobot_prefix.example.id
   status    = "Active"

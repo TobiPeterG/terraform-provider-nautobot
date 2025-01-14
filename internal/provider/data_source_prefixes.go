@@ -42,6 +42,11 @@ func dataSourcePrefixes() *schema.Resource {
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
+						"parent_id": {
+							Description: "The ID of the parent of this prefix.",
+							Type:        schema.TypeString,
+							Computed:    true,
+						},
 						"role_id": {
 							Description: "The ID of the role associated with the prefix.",
 							Type:        schema.TypeString,
@@ -136,6 +141,12 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
 			}
 			itemMap["status"] = statusName
+		}
+
+		if prefix.Parent.IsSet() {
+			if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
+				itemMap["parent_id"] = *parent.Id.String
+			}
 		}
 
 		if prefix.Tenant.IsSet() {
