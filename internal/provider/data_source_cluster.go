@@ -107,12 +107,21 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 
 	cluster := rsp.Results[0]
 
-	d.SetId(cluster.Id)
+	// Ensure the ID is present and set it as the Terraform resource ID
+	if cluster.Id == nil || *cluster.Id == "" {
+		return diag.Errorf("cluster %q returned no id", clusterName)
+	}
+	id := *cluster.Id
+	d.SetId(id)
 
 	// Set basic fields
-	d.Set("id", cluster.Id)
+	d.Set("id", id)
 	d.Set("name", cluster.Name)
-	d.Set("comments", cluster.Comments)
+	if cluster.Comments != nil {
+		d.Set("comments", *cluster.Comments)
+	} else {
+		d.Set("comments", "")
+	}
 
 	// Convert created and last updated fields to strings
 	createdStr := ""

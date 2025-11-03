@@ -112,74 +112,96 @@ func dataSourceVLANRead(ctx context.Context, d *schema.ResourceData, meta interf
 	if err != nil {
 		return diag.Errorf("failed to get VLAN with name %s: %s", vlanName, err.Error())
 	}
-
 	if len(rsp.Results) == 0 {
 		return diag.Errorf("no VLAN found with name %s", vlanName)
 	}
 
 	vlan := rsp.Results[0]
 
-	d.SetId(vlan.Id)
+	// Ensure the ID is present and set it as the Terraform resource ID
+	if vlan.Id == nil || *vlan.Id == "" {
+		return diag.Errorf("VLAN %q returned no id", vlanName)
+	}
+	vlanID := *vlan.Id
+	d.SetId(vlanID)
 
+	// Timestamps -> empty string if missing
 	createdStr := ""
 	if vlan.Created.IsSet() && vlan.Created.Get() != nil {
 		createdStr = vlan.Created.Get().Format(time.RFC3339)
 	}
-
 	lastUpdatedStr := ""
 	if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
 		lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
 	}
 
-	// Set the fields directly in the resource data
-	d.Set("id", vlan.Id)
+	// Required/non-null primitives (vid, name) are direct;
+	// Optional strings -> empty string when missing.
+	desc := ""
+	if vlan.Description != nil {
+		desc = *vlan.Description
+	}
+
+	d.Set("id", vlanID)
 	d.Set("vid", vlan.Vid)
 	d.Set("name", vlan.Name)
-	d.Set("description", vlan.Description)
+	d.Set("description", desc)
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 
-	// Handle nullable VlanGroup
+	// vlan_group_id -> empty string when missing
+	vlanGroupID := ""
 	if vlan.VlanGroup.IsSet() {
-		if vlanGroup := vlan.VlanGroup.Get(); vlanGroup != nil && vlanGroup.Id != nil {
-			d.Set("vlan_group_id", *vlanGroup.Id)
+		if vg := vlan.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
+			vlanGroupID = *vg.Id.String
 		}
 	}
+	d.Set("vlan_group_id", vlanGroupID)
 
+	// status -> resolve name; empty string when missing
+	statusName := ""
 	if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
 		statusID := *vlan.Status.Id.String
-		statusName, err := getStatusName(ctx, c, t, statusID)
-		if err != nil {
-			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		if statusID != "" {
+			if name, err := getStatusName(ctx, c, t, statusID); err == nil {
+				statusName = name
+			} else {
+				// If lookup fails, still set to empty string rather than leaving unset
+				statusName = ""
+			}
 		}
-		d.Set("status", statusName)
 	}
+	d.Set("status", statusName)
 
-	// Handle nullable Tenant
+	// tenant_id -> empty string when missing
+	tenantID := ""
 	if vlan.Tenant.IsSet() {
 		if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			d.Set("tenant_id", *tenant.Id.String)
+			tenantID = *tenant.Id.String
 		}
 	}
+	d.Set("tenant_id", tenantID)
 
-	// Handle nullable Role
+	// role_id -> empty string when missing
+	roleID := ""
 	if vlan.Role.IsSet() {
 		if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-			d.Set("role_id", *role.Id.String)
+			roleID = *role.Id.String
 		}
 	}
+	d.Set("role_id", roleID)
 
-	// Handle locations
-	var locations []string
-	for _, location := range vlan.Locations {
-		if location.Id != nil && location.Id.String != nil {
-			locations = append(locations, *location.Id.String)
+	// locations -> always a list; empty when none
+	locations := make([]string, 0, len(vlan.Locations))
+	for _, loc := range vlan.Locations {
+		if loc.Id != nil && loc.Id.String != nil {
+			locations = append(locations, *loc.Id.String)
 		}
 	}
 	d.Set("locations", locations)
 
-	// Handle Tags
-	var tags []string
+	// tags_ids -> always a list; empty when none
+	tags := make([]string, 0, len(vlan.Tags))
 	for _, tag := range vlan.Tags {
 		if tag.Id != nil && tag.Id.String != nil {
 			tags = append(tags, *tag.Id.String)

@@ -103,7 +103,12 @@ func dataSourceManufacturerRead(ctx context.Context, d *schema.ResourceData, met
 
 	manufacturer := rsp.Results[0]
 
-	d.SetId(manufacturer.Id)
+	// Ensure the ID is present and set it as the Terraform resource ID
+	if manufacturer.Id == nil || *manufacturer.Id == "" {
+		return diag.Errorf("manufacturer %q returned no id", manufacturerName)
+	}
+	id := *manufacturer.Id
+	d.SetId(id)
 
 	createdStr := ""
 	if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
@@ -116,13 +121,17 @@ func dataSourceManufacturerRead(ctx context.Context, d *schema.ResourceData, met
 	}
 
 	// Set the fields directly in the resource data
-	d.Set("id", manufacturer.Id)
+	d.Set("id", id)
 	d.Set("object_type", manufacturer.ObjectType)
 	d.Set("display", manufacturer.Display)
 	d.Set("url", manufacturer.Url)
 	d.Set("natural_slug", manufacturer.NaturalSlug)
 	d.Set("name", manufacturer.Name)
-	d.Set("description", manufacturer.Description)
+	if manufacturer.Description != nil {
+		d.Set("description", *manufacturer.Description)
+	} else {
+		d.Set("description", "")
+	}
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 	d.Set("notes_url", manufacturer.NotesUrl)

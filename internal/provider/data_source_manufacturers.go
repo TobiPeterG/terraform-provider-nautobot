@@ -118,14 +118,25 @@ func dataSourceManufacturersRead(ctx context.Context, d *schema.ResourceData, me
 		if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
 			lastUpdatedStr = manufacturer.LastUpdated.Get().Format(time.RFC3339)
 		}
+
+		idStr := ""
+		if manufacturer.Id != nil {
+			idStr = *manufacturer.Id
+		}
+
+		descStr := ""
+		if manufacturer.Description != nil {
+			descStr = *manufacturer.Description
+		}
+
 		itemMap := map[string]interface{}{
-			"id":           manufacturer.Id,
+			"id":           idStr,
 			"object_type":  manufacturer.ObjectType,
 			"display":      manufacturer.Display,
 			"url":          manufacturer.Url,
 			"natural_slug": manufacturer.NaturalSlug,
 			"name":         manufacturer.Name,
-			"description":  manufacturer.Description,
+			"description":  descStr,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
 			"notes_url":    manufacturer.NotesUrl,

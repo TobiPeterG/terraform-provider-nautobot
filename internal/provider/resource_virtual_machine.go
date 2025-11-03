@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -147,7 +148,10 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 
 	// If a VM with the same name in this cluster exists, use its ID and skip creation
 	if len(existingVMs.Results) > 0 {
-		d.SetId(existingVMs.Results[0].Id)
+		if existingVMs.Results[0].Id == nil || *existingVMs.Results[0].Id == "" {
+			return diag.Errorf("existing virtual machine %q returned no id", vmName)
+		}
+		d.SetId(*existingVMs.Results[0].Id)
 		return resourceVirtualMachineRead(ctx, d, meta)
 	}
 
@@ -296,7 +300,10 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	// Set resource ID
-	d.SetId(rsp.Id)
+	if rsp.Id == nil || *rsp.Id == "" {
+		return diag.Errorf("created virtual machine returned no id")
+	}
+	d.SetId(*rsp.Id)
 
 	return resourceVirtualMachineRead(ctx, d, meta)
 }
@@ -326,52 +333,85 @@ func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, met
 
 	// Map the retrieved data back to Terraform state
 	d.Set("name", vm.Name)
-	d.Set("cluster_id", vm.Cluster.Id)
-	d.Set("status", vm.Status.Id)
-	d.Set("vcpus", vm.Vcpus.Get())
-	d.Set("memory", vm.Memory.Get())
-	d.Set("disk", vm.Disk.Get())
-	d.Set("comments", vm.Comments)
+
+	// cluster_id
+	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
+		d.Set("cluster_id", *vm.Cluster.Id.String)
+	}
+
+	// status -> name
+	if vm.Status.Id != nil && vm.Status.Id.String != nil {
+		statusID := *vm.Status.Id.String
+		statusName, err := getStatusName(ctx, c, t, statusID)
+		if err != nil {
+			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		}
+		d.Set("status", statusName)
+	}
+
+	// vcpus, memory, disk (nullable ints)
+	if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
+		d.Set("vcpus", int(*vm.Vcpus.Get()))
+	} else {
+		d.Set("vcpus", 0)
+	}
+	if vm.Memory.IsSet() && vm.Memory.Get() != nil {
+		d.Set("memory", int(*vm.Memory.Get()))
+	} else {
+		d.Set("memory", 0)
+	}
+	if vm.Disk.IsSet() && vm.Disk.Get() != nil {
+		d.Set("disk", int(*vm.Disk.Get()))
+	} else {
+		d.Set("disk", 0)
+	}
+
+	// comments
+	if vm.Comments != nil {
+		d.Set("comments", *vm.Comments)
+	} else {
+		d.Set("comments", "")
+	}
 
 	// Handle nullable fields using IsSet and Get methods
 	if vm.Tenant.IsSet() {
 		tenant := vm.Tenant.Get()
-		if tenant != nil && tenant.Id != nil {
+		if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 			d.Set("tenant_id", *tenant.Id.String)
 		}
 	}
 
 	if vm.Platform.IsSet() {
 		platform := vm.Platform.Get()
-		if platform != nil && platform.Id != nil {
+		if platform != nil && platform.Id != nil && platform.Id.String != nil {
 			d.Set("platform_id", *platform.Id.String)
 		}
 	}
 
 	if vm.Role.IsSet() {
 		role := vm.Role.Get()
-		if role != nil && role.Id != nil {
+		if role != nil && role.Id != nil && role.Id.String != nil {
 			d.Set("role_id", *role.Id.String)
 		}
 	}
 
 	if vm.PrimaryIp4.IsSet() {
 		primaryIp4 := vm.PrimaryIp4.Get()
-		if primaryIp4 != nil && primaryIp4.Id != nil {
+		if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
 			d.Set("primary_ip4_id", *primaryIp4.Id.String)
 		}
 	}
 
 	if vm.PrimaryIp6.IsSet() {
 		primaryIp6 := vm.PrimaryIp6.Get()
-		if primaryIp6 != nil && primaryIp6.Id != nil {
+		if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
 			d.Set("primary_ip6_id", *primaryIp6.Id.String)
 		}
 	}
 
 	if vm.SoftwareVersion.IsSet() {
 		softwareVersion := vm.SoftwareVersion.Get()
-		if softwareVersion != nil && softwareVersion.Id != nil {
+		if softwareVersion != nil && softwareVersion.Id != nil && softwareVersion.Id.String != nil {
 			d.Set("software_version_id", *softwareVersion.Id.String)
 		}
 	}
@@ -384,19 +424,28 @@ func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, met
 			})
 		}
 	}
-
 	d.Set("software_image_files", imageFiles)
 
 	var tags []string
 	for _, tag := range vm.Tags {
-		if tag.Id != nil {
+		if tag.Id != nil && tag.Id.String != nil {
 			tags = append(tags, *tag.Id.String)
 		}
 	}
 	d.Set("tags_ids", tags)
 
-	d.Set("created", vm.Created)
-	d.Set("last_updated", vm.LastUpdated)
+	// created / last_updated as RFC3339
+	createdStr := ""
+	if vm.Created.IsSet() && vm.Created.Get() != nil {
+		createdStr = vm.Created.Get().Format(time.RFC3339)
+	}
+	d.Set("created", createdStr)
+
+	lastUpdatedStr := ""
+	if vm.LastUpdated.IsSet() && vm.LastUpdated.Get() != nil {
+		lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
+	}
+	d.Set("last_updated", lastUpdatedStr)
 
 	return nil
 }

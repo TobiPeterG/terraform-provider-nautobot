@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -94,7 +95,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, meta int
 
 	// If a cluster with the same name exists, use its ID and skip creation
 	if len(existingClusters.Results) > 0 {
-		d.SetId(existingClusters.Results[0].Id)
+		if existingClusters.Results[0].Id == nil || *existingClusters.Results[0].Id == "" {
+			return diag.Errorf("existing cluster %q returned no id", clusterName)
+		}
+		d.SetId(*existingClusters.Results[0].Id)
 		return resourceClusterRead(ctx, d, meta)
 	}
 
@@ -162,7 +166,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, meta int
 	}
 
 	// Set resource ID (Cluster ID)
-	d.SetId(rsp.Id)
+	if rsp.Id == nil || *rsp.Id == "" {
+		return diag.Errorf("created cluster returned no id")
+	}
+	d.SetId(*rsp.Id)
 
 	return resourceClusterRead(ctx, d, meta)
 }
@@ -201,6 +208,8 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, meta inter
 	// Check if comments exist before setting
 	if cluster.Comments != nil {
 		d.Set("comments", *cluster.Comments)
+	} else {
+		d.Set("comments", "")
 	}
 
 	// Handle nullable cluster group
@@ -235,8 +244,18 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, meta inter
 		d.Set("tags_ids", tags)
 	}
 
-	d.Set("created", cluster.Created)
-	d.Set("last_updated", cluster.LastUpdated)
+	// Format and set created / last_updated
+	createdStr := ""
+	if cluster.Created.IsSet() && cluster.Created.Get() != nil {
+		createdStr = cluster.Created.Get().Format(time.RFC3339)
+	}
+	d.Set("created", createdStr)
+
+	lastUpdatedStr := ""
+	if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
+		lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
+	}
+	d.Set("last_updated", lastUpdatedStr)
 
 	return nil
 }

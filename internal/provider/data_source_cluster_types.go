@@ -118,14 +118,24 @@ func dataSourceClusterTypesRead(ctx context.Context, d *schema.ResourceData, met
 			lastUpdatedStr = clusterType.LastUpdated.Get().Format(time.RFC3339)
 		}
 
+		idStr := ""
+		if clusterType.Id != nil {
+			idStr = *clusterType.Id
+		}
+
+		descStr := ""
+		if clusterType.Description != nil {
+			descStr = *clusterType.Description
+		}
+
 		itemMap := map[string]interface{}{
-			"id":           clusterType.Id,
+			"id":           idStr,
 			"object_type":  clusterType.ObjectType,
 			"display":      clusterType.Display,
 			"url":          clusterType.Url,
 			"natural_slug": clusterType.NaturalSlug,
 			"name":         clusterType.Name,
-			"description":  clusterType.Description,
+			"description":  descStr,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
 			"notes_url":    clusterType.NotesUrl,

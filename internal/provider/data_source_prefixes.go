@@ -126,10 +126,20 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 			lastUpdatedStr = prefix.LastUpdated.Get().Format(time.RFC3339)
 		}
 
+		idStr := ""
+		if prefix.Id != nil {
+			idStr = *prefix.Id
+		}
+
+		descStr := ""
+		if prefix.Description != nil {
+			descStr = *prefix.Description
+		}
+
 		itemMap := map[string]interface{}{
-			"id":           prefix.Id,
+			"id":           idStr,
 			"prefix":       prefix.Prefix,
-			"description":  prefix.Description,
+			"description":  descStr,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
 		}
@@ -141,6 +151,8 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
 			}
 			itemMap["status"] = statusName
+		} else {
+			itemMap["status"] = ""
 		}
 
 		if prefix.Parent.IsSet() {

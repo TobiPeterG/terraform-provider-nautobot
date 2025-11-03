@@ -122,11 +122,21 @@ func dataSourceClustersRead(ctx context.Context, d *schema.ResourceData, meta in
 			lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
 		}
 
+		idStr := ""
+		if cluster.Id != nil {
+			idStr = *cluster.Id
+		}
+
+		commentsStr := ""
+		if cluster.Comments != nil {
+			commentsStr = *cluster.Comments
+		}
+
 		// Prepare itemMap with mandatory fields
 		itemMap := map[string]interface{}{
-			"id":           cluster.Id,
+			"id":           idStr,
 			"name":         cluster.Name,
-			"comments":     cluster.Comments,
+			"comments":     commentsStr,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
 		}
@@ -138,21 +148,21 @@ func dataSourceClustersRead(ctx context.Context, d *schema.ResourceData, meta in
 
 		// Handle nullable ClusterGroup
 		if cluster.ClusterGroup.IsSet() {
-			if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil {
+			if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil && clusterGroup.Id.String != nil {
 				itemMap["cluster_group_id"] = *clusterGroup.Id.String
 			}
 		}
 
 		// Handle nullable Tenant
 		if cluster.Tenant.IsSet() {
-			if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil {
+			if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 				itemMap["tenant_id"] = *tenant.Id.String
 			}
 		}
 
 		// Handle nullable Location
 		if cluster.Location.IsSet() {
-			if location := cluster.Location.Get(); location != nil && location.Id != nil {
+			if location := cluster.Location.Get(); location != nil && location.Id != nil && location.Id.String != nil {
 				itemMap["location_id"] = *location.Id.String
 			}
 		}

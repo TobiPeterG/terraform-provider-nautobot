@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -64,11 +65,13 @@ func resourceVMInterface() *schema.Resource {
 				Description: "Untagged VLAN ID associated with the interface.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 			},
 			"tags_ids": {
 				Description: "Tags associated with the interface.",
 				Type:        schema.TypeList,
 				Optional:    true,
+				Computed:    true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -125,7 +128,10 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 
 	if len(existingInterfaces.Results) > 0 {
 		// Interface already exists, use its ID and skip creation
-		d.SetId(existingInterfaces.Results[0].Id)
+		if existingInterfaces.Results[0].Id == nil || *existingInterfaces.Results[0].Id == "" {
+			return diag.Errorf("existing VM interface %q returned no id", interfaceName)
+		}
+		d.SetId(*existingInterfaces.Results[0].Id)
 		return resourceVMInterfaceRead(ctx, d, meta)
 	}
 
@@ -174,13 +180,16 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	// Set resource ID
-	d.SetId(rsp.Id)
+	if rsp.Id == nil || *rsp.Id == "" {
+		return diag.Errorf("created VM interface returned no id")
+	}
+	d.SetId(*rsp.Id)
 
 	// Assign IP addresses to the VM interface
 	if v, ok := d.GetOk("ip_addresses"); ok {
 		ipAddresses := v.([]interface{})
 		for _, ip := range ipAddresses {
-			err := assignIPAddressToVMInterface(ctx, c, t, ip.(string), rsp.Id)
+			err := assignIPAddressToVMInterface(ctx, c, t, ip.(string), *rsp.Id)
 			if err != nil {
 				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
 			}
@@ -215,21 +224,85 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	// Map the retrieved data back to Terraform state
 	d.Set("name", vmInterface.Name)
-	d.Set("mac_address", vmInterface.MacAddress)
-	d.Set("enabled", vmInterface.Enabled)
-	d.Set("mtu", vmInterface.Mtu)
-	d.Set("description", vmInterface.Description)
-	d.Set("status", vmInterface.Status.Id)
-	d.Set("virtual_machine_id", vmInterface.VirtualMachine.Id)
-	d.Set("untagged_vlan_id", vmInterface.UntaggedVlan)
-	d.Set("created", vmInterface.Created)
-	d.Set("last_updated", vmInterface.LastUpdated)
-	d.Set("tags_ids", vmInterface.Tags)
+
+	// mac_address
+	if vmInterface.MacAddress.IsSet() && vmInterface.MacAddress.Get() != nil {
+		d.Set("mac_address", *vmInterface.MacAddress.Get())
+	} else {
+		d.Set("mac_address", "")
+	}
+
+	// enabled
+	if vmInterface.Enabled != nil {
+		d.Set("enabled", *vmInterface.Enabled)
+	} else {
+		d.Set("enabled", false)
+	}
+
+	// mtu
+	if vmInterface.Mtu.IsSet() && vmInterface.Mtu.Get() != nil {
+		d.Set("mtu", int(*vmInterface.Mtu.Get()))
+	} else {
+		d.Set("mtu", 0)
+	}
+
+	// description
+	if vmInterface.Description != nil {
+		d.Set("description", *vmInterface.Description)
+	} else {
+		d.Set("description", "")
+	}
+
+	// status -> name
+	if vmInterface.Status.Id != nil && vmInterface.Status.Id.String != nil {
+		statusID := *vmInterface.Status.Id.String
+		statusName, err := getStatusName(ctx, c, t, statusID)
+		if err != nil {
+			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		}
+		d.Set("status", statusName)
+	}
+
+	// virtual_machine_id
+	if vmInterface.VirtualMachine.Id != nil && vmInterface.VirtualMachine.Id.String != nil {
+		d.Set("virtual_machine_id", *vmInterface.VirtualMachine.Id.String)
+	}
+
+	// untagged_vlan_id
+	if vmInterface.UntaggedVlan.IsSet() {
+		if uv := vmInterface.UntaggedVlan.Get(); uv != nil && uv.Id != nil && uv.Id.String != nil {
+			d.Set("untagged_vlan_id", *uv.Id.String)
+		}
+	}
+
+	// created / last_updated
+	createdStr := ""
+	if vmInterface.Created.IsSet() && vmInterface.Created.Get() != nil {
+		createdStr = vmInterface.Created.Get().Format(time.RFC3339)
+	}
+	d.Set("created", createdStr)
+
+	lastUpdatedStr := ""
+	if vmInterface.LastUpdated.IsSet() && vmInterface.LastUpdated.Get() != nil {
+		lastUpdatedStr = vmInterface.LastUpdated.Get().Format(time.RFC3339)
+	}
+	d.Set("last_updated", lastUpdatedStr)
+
+	// tags_ids
+	var tags []string
+	for _, tag := range vmInterface.Tags {
+		if tag.Id != nil && tag.Id.String != nil {
+			tags = append(tags, *tag.Id.String)
+		}
+	}
+	d.Set("tags_ids", tags)
 
 	// Fetch assigned IP addresses
 	assignedIPs := []string{}
 	for _, ip := range vmInterface.IpAddresses {
-		assignedIPs = append(assignedIPs, *ip.Id.String)
+		if ip.Id != nil && ip.Id.String != nil {
+			assignedIPs = append(assignedIPs, *ip.Id.String)
+		}
 	}
 	d.Set("ip_addresses", assignedIPs)
 
@@ -310,18 +383,18 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 
 	// Update IP addresses if they have changed
 	if d.HasChange("ip_addresses") {
-		oldIPs, newIPs := d.GetChange("ip_addresses")
+		oldIPsRaw, newIPsRaw := d.GetChange("ip_addresses")
 
 		// Remove old IP addresses
-		for _, oldIP := range oldIPs.([]interface{}) {
-			err := removeIPAddressFromVMInterface(ctx, c, t, oldIP.(string), vmInterfaceId) // Pass vmInterfaceId here
+		for _, oldIP := range oldIPsRaw.([]interface{}) {
+			err := removeIPAddressFromVMInterface(ctx, c, t, oldIP.(string), vmInterfaceId)
 			if err != nil {
 				return diag.Errorf("failed to remove IP address from VM interface: %s", err.Error())
 			}
 		}
 
 		// Assign new IP addresses
-		for _, newIP := range newIPs.([]interface{}) {
+		for _, newIP := range newIPsRaw.([]interface{}) {
 			err := assignIPAddressToVMInterface(ctx, c, t, newIP.(string), vmInterfaceId)
 			if err != nil {
 				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
@@ -429,7 +502,7 @@ func removeIPAddressFromVMInterface(ctx context.Context, c *nb.APIClient, token,
 	// Look for the specific VM interface assignment in the IP address object
 	var assignmentID string
 	for _, vmInterface := range ipAddress.VmInterfaces {
-		if vmInterface.Id.String != nil && *vmInterface.Id.String == vmInterfaceID {
+		if vmInterface.Id != nil && vmInterface.Id.String != nil && *vmInterface.Id.String == vmInterfaceID {
 			assignmentID = *vmInterface.Id.String
 			break
 		}

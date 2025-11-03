@@ -6,7 +6,7 @@ require (
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-log v0.8.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
-	github.com/nautobot/go-nautobot/v2 v2.3.2-beta
+	github.com/nautobot/go-nautobot/v2 v2.4.0-beta
 	github.com/tidwall/gjson v1.14.4
 )
 

@@ -103,7 +103,10 @@ func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, met
 	for _, manufacturer := range existingManufacturersResp.Results {
 		if manufacturer.Name == name {
 			// Manufacturer already exists, set the ID and exit
-			d.SetId(manufacturer.Id)
+			if manufacturer.Id == nil || *manufacturer.Id == "" {
+				return diag.Errorf("existing manufacturer %q returned no id", name)
+			}
+			d.SetId(*manufacturer.Id)
 			return resourceManufacturerRead(ctx, d, meta)
 		}
 	}
@@ -125,7 +128,10 @@ func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, met
 		"name": m.Name,
 	})
 
-	d.SetId(rsp.Id)
+	if rsp.Id == nil || *rsp.Id == "" {
+		return diag.Errorf("created manufacturer returned no id")
+	}
+	d.SetId(*rsp.Id)
 
 	return resourceManufacturerRead(ctx, d, meta)
 }
@@ -156,13 +162,21 @@ func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta 
 	d.Set("name", manufacturer.Name)
 	if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
 		d.Set("created", manufacturer.Created.Get().Format(time.RFC3339))
+	} else {
+		d.Set("created", "")
 	}
 	if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
 		d.Set("last_updated", manufacturer.LastUpdated.Get().Format(time.RFC3339))
+	} else {
+		d.Set("last_updated", "")
 	}
-	d.Set("description", manufacturer.Description)
+	if manufacturer.Description != nil {
+		d.Set("description", *manufacturer.Description)
+	} else {
+		d.Set("description", "")
+	}
 	d.Set("display", manufacturer.Display)
-	d.Set("id", manufacturer.Id)
+	d.Set("id", id)
 	d.Set("notes_url", manufacturer.NotesUrl)
 	d.Set("url", manufacturer.Url)
 	d.Set("object_type", manufacturer.ObjectType)

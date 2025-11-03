@@ -151,16 +151,41 @@ func dataSourceVirtualMachinesRead(ctx context.Context, d *schema.ResourceData, 
 			lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
 		}
 
+		// Safely dereference fields
+		idStr := ""
+		if vm.Id != nil {
+			idStr = *vm.Id
+		}
+
+		vcpusVal := 0
+		if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
+			vcpusVal = int(*vm.Vcpus.Get())
+		}
+
+		memoryVal := 0
+		if vm.Memory.IsSet() && vm.Memory.Get() != nil {
+			memoryVal = int(*vm.Memory.Get())
+		}
+
+		diskVal := 0
+		if vm.Disk.IsSet() && vm.Disk.Get() != nil {
+			diskVal = int(*vm.Disk.Get())
+		}
+
+		commentsStr := ""
+		if vm.Comments != nil {
+			commentsStr = *vm.Comments
+		}
+
 		itemMap := map[string]interface{}{
-			"id":           vm.Id,
+			"id":           idStr,
 			"name":         vm.Name,
-			"vcpus":        vm.Vcpus.Get(),
-			"memory":       vm.Memory.Get(),
-			"disk":         vm.Disk.Get(),
-			"comments":     vm.Comments,
+			"vcpus":        vcpusVal,
+			"memory":       memoryVal,
+			"disk":         diskVal,
+			"comments":     commentsStr,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
-			"tags_ids":     vm.Tags,
 		}
 
 		// Extract cluster_id, status, and other fields
@@ -175,43 +200,54 @@ func dataSourceVirtualMachinesRead(ctx context.Context, d *schema.ResourceData, 
 				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
 			}
 			itemMap["status"] = statusName
+		} else {
+			itemMap["status"] = ""
 		}
 
 		// Handle nullable fields (tenant, platform, role, etc.)
 		if vm.Tenant.IsSet() {
 			tenant := vm.Tenant.Get()
-			if tenant != nil && tenant.Id != nil {
+			if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 				itemMap["tenant_id"] = *tenant.Id.String
 			}
 		}
 
 		if vm.Platform.IsSet() {
 			platform := vm.Platform.Get()
-			if platform != nil && platform.Id != nil {
+			if platform != nil && platform.Id != nil && platform.Id.String != nil {
 				itemMap["platform_id"] = *platform.Id.String
 			}
 		}
 
 		if vm.Role.IsSet() {
 			role := vm.Role.Get()
-			if role != nil && role.Id != nil {
+			if role != nil && role.Id != nil && role.Id.String != nil {
 				itemMap["role_id"] = *role.Id.String
 			}
 		}
 
 		if vm.PrimaryIp4.IsSet() {
 			primaryIp4 := vm.PrimaryIp4.Get()
-			if primaryIp4 != nil && primaryIp4.Id != nil {
+			if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
 				itemMap["primary_ip4_id"] = *primaryIp4.Id.String
 			}
 		}
 
 		if vm.PrimaryIp6.IsSet() {
 			primaryIp6 := vm.PrimaryIp6.Get()
-			if primaryIp6 != nil && primaryIp6.Id != nil {
+			if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
 				itemMap["primary_ip6_id"] = *primaryIp6.Id.String
 			}
 		}
+
+		// tags_ids -> []string of tag IDs
+		var tags []string
+		for _, tag := range vm.Tags {
+			if tag.Id != nil && tag.Id.String != nil {
+				tags = append(tags, *tag.Id.String)
+			}
+		}
+		itemMap["tags_ids"] = tags
 
 		list = append(list, itemMap)
 	}

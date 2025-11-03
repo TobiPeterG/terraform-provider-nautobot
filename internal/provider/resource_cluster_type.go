@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -96,7 +97,10 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 
 	// If a cluster type with the same name exists, use its ID and skip creation
 	if len(existingClusterTypes.Results) > 0 {
-		d.SetId(existingClusterTypes.Results[0].Id)
+		if existingClusterTypes.Results[0].Id == nil || *existingClusterTypes.Results[0].Id == "" {
+			return diag.Errorf("existing cluster type %q returned no id", clusterTypeName)
+		}
+		d.SetId(*existingClusterTypes.Results[0].Id)
 		return resourceClusterTypeRead(ctx, d, meta)
 	}
 
@@ -116,7 +120,10 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	// Set resource ID (Cluster Type ID)
-	d.SetId(rsp.Id)
+	if rsp.Id == nil || *rsp.Id == "" {
+		return diag.Errorf("created cluster type returned no id")
+	}
+	d.SetId(*rsp.Id)
 
 	return resourceClusterTypeRead(ctx, d, meta)
 }
@@ -144,6 +151,16 @@ func resourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta i
 		return diag.Errorf("failed to read cluster type: %s", err.Error())
 	}
 
+	// Format times
+	createdStr := ""
+	if clusterType.Created.IsSet() && clusterType.Created.Get() != nil {
+		createdStr = clusterType.Created.Get().Format(time.RFC3339)
+	}
+	lastUpdatedStr := ""
+	if clusterType.LastUpdated.IsSet() && clusterType.LastUpdated.Get() != nil {
+		lastUpdatedStr = clusterType.LastUpdated.Get().Format(time.RFC3339)
+	}
+
 	// Map the retrieved data back to Terraform state
 	d.Set("name", clusterType.Name)
 	d.Set("object_type", clusterType.ObjectType)
@@ -152,9 +169,11 @@ func resourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta i
 	d.Set("natural_slug", clusterType.NaturalSlug)
 	if clusterType.Description != nil {
 		d.Set("description", *clusterType.Description)
+	} else {
+		d.Set("description", "")
 	}
-	d.Set("created", clusterType.Created)
-	d.Set("last_updated", clusterType.LastUpdated)
+	d.Set("created", createdStr)
+	d.Set("last_updated", lastUpdatedStr)
 	d.Set("notes_url", clusterType.NotesUrl)
 
 	return nil

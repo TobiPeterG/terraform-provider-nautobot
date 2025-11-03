@@ -79,5 +79,10 @@ func getStatusID(ctx context.Context, c *nb.APIClient, token string, statusName 
 		return "", fmt.Errorf("status %s not found", statusName)
 	}
 
-	return statuses.Results[0].Id, nil
+	// Ensure the ID is present and not empty before returning
+	if statuses.Results[0].Id == nil || *statuses.Results[0].Id == "" {
+		return "", fmt.Errorf("status %s returned no id", statusName)
+	}
+
+	return *statuses.Results[0].Id, nil
 }

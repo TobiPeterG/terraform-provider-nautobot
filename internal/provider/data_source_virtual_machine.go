@@ -136,7 +136,12 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 
 	vm := rsp.Results[0]
 
-	d.SetId(vm.Id)
+	// Ensure the ID is present and set it as the Terraform resource ID
+	if vm.Id == nil || *vm.Id == "" {
+		return diag.Errorf("virtual machine %q returned no id", vmName)
+	}
+	vmID := *vm.Id
+	d.SetId(vmID)
 
 	createdStr := ""
 	if vm.Created.IsSet() && vm.Created.Get() != nil {
@@ -149,15 +154,34 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	// Set the fields directly in the resource data
-	d.Set("id", vm.Id)
+	d.Set("id", vmID)
 	d.Set("name", vm.Name)
-	d.Set("vcpus", vm.Vcpus.Get())
-	d.Set("memory", vm.Memory.Get())
-	d.Set("disk", vm.Disk.Get())
-	d.Set("comments", vm.Comments)
+
+	// Nullable ints: set to 0 if not present
+	if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
+		d.Set("vcpus", int(*vm.Vcpus.Get()))
+	} else {
+		d.Set("vcpus", 0)
+	}
+	if vm.Memory.IsSet() && vm.Memory.Get() != nil {
+		d.Set("memory", int(*vm.Memory.Get()))
+	} else {
+		d.Set("memory", 0)
+	}
+	if vm.Disk.IsSet() && vm.Disk.Get() != nil {
+		d.Set("disk", int(*vm.Disk.Get()))
+	} else {
+		d.Set("disk", 0)
+	}
+
+	if vm.Comments != nil {
+		d.Set("comments", *vm.Comments)
+	} else {
+		d.Set("comments", "")
+	}
+
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
-	d.Set("tags_ids", vm.Tags)
 
 	// Extract additional fields
 	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
@@ -207,6 +231,15 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 			d.Set("primary_ip6_id", *primaryIp6.Id.String)
 		}
 	}
+
+	// Handle tags -> []string of tag IDs
+	var tags []string
+	for _, tag := range vm.Tags {
+		if tag.Id != nil && tag.Id.String != nil {
+			tags = append(tags, *tag.Id.String)
+		}
+	}
+	d.Set("tags_ids", tags)
 
 	return diags
 }

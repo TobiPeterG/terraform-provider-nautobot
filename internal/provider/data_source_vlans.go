@@ -134,12 +134,22 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 			lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
 		}
 
-		// Prepare itemMap with mandatory fields
+		// Prepare itemMap with mandatory fields (ensure pointer fields are safely dereferenced)
+		idStr := ""
+		if vlan.Id != nil {
+			idStr = *vlan.Id
+		}
+
+		descStr := ""
+		if vlan.Description != nil {
+			descStr = *vlan.Description
+		}
+
 		itemMap := map[string]interface{}{
-			"id":           vlan.Id,
-			"vid":          vlan.Vid,
+			"id":           idStr,
+			"vid":          int(vlan.Vid),
 			"name":         vlan.Name,
-			"description":  vlan.Description,
+			"description":  descStr,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
 		}
@@ -159,6 +169,8 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
 			}
 			itemMap["status"] = statusName
+		} else {
+			itemMap["status"] = ""
 		}
 
 		// Handle nullable Tenant

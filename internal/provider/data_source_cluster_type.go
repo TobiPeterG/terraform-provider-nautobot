@@ -103,7 +103,11 @@ func dataSourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta
 
 	clusterType := rsp.Results[0]
 
-	d.SetId(clusterType.Id)
+	if clusterType.Id == nil || *clusterType.Id == "" {
+		return diag.Errorf("cluster type %q returned no id", clusterTypeName)
+	}
+	id := *clusterType.Id
+	d.SetId(id)
 
 	createdStr := ""
 	if clusterType.Created.IsSet() && clusterType.Created.Get() != nil {
@@ -115,17 +119,22 @@ func dataSourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta
 		lastUpdatedStr = clusterType.LastUpdated.Get().Format(time.RFC3339)
 	}
 
-	// Set the fields directly in the resource data
-	d.Set("id", clusterType.Id)
-	d.Set("object_type", clusterType.ObjectType)
-	d.Set("display", clusterType.Display)
-	d.Set("url", clusterType.Url)
-	d.Set("natural_slug", clusterType.NaturalSlug)
-	d.Set("name", clusterType.Name)
-	d.Set("description", clusterType.Description)
-	d.Set("created", createdStr)
-	d.Set("last_updated", lastUpdatedStr)
-	d.Set("notes_url", clusterType.NotesUrl)
+	if err := d.Set("id", id); err != nil {
+		return diag.FromErr(err)
+	}
+	_ = d.Set("object_type", clusterType.ObjectType)
+	_ = d.Set("display", clusterType.Display)
+	_ = d.Set("url", clusterType.Url)
+	_ = d.Set("natural_slug", clusterType.NaturalSlug)
+	_ = d.Set("name", clusterType.Name)
+	if clusterType.Description != nil {
+		_ = d.Set("description", *clusterType.Description)
+	} else {
+		_ = d.Set("description", "")
+	}
+	_ = d.Set("created", createdStr)
+	_ = d.Set("last_updated", lastUpdatedStr)
+	_ = d.Set("notes_url", clusterType.NotesUrl)
 
 	return diags
 }

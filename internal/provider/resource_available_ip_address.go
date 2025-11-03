@@ -92,11 +92,26 @@ func resourceAvailableIPAddressCreate(ctx context.Context, d *schema.ResourceDat
 		return diag.Errorf("failed to allocate IP address: %s", err.Error())
 	}
 
+	// Ensure we have at least one result
+	if len(rsp) == 0 {
+		return diag.Errorf("no IP address returned from allocation")
+	}
+
+	// Ensure the ID is present and set it as the Terraform resource ID
+	if rsp[0].Id == nil || *rsp[0].Id == "" {
+		return diag.Errorf("allocated IP address returned no id")
+	}
+	ipID := *rsp[0].Id
+	d.SetId(ipID)
+
 	// Set resource data (assuming a single result, adjust if needed)
-	d.SetId(rsp[0].Id)
 	d.Set("address", rsp[0].Address)
-	d.Set("ip_version", rsp[0].IpVersion)
-	d.Set("dns_name", rsp[0].DnsName)
+	d.Set("ip_version", int(rsp[0].IpVersion))
+	if rsp[0].DnsName != nil {
+		d.Set("dns_name", *rsp[0].DnsName)
+	} else {
+		d.Set("dns_name", "")
+	}
 
 	return resourceAvailableIPAddressRead(ctx, d, meta)
 }
@@ -127,8 +142,12 @@ func resourceAvailableIPAddressRead(ctx context.Context, d *schema.ResourceData,
 
 	// Map the retrieved data back to Terraform state
 	d.Set("address", ipAddress.Address)
-	d.Set("ip_version", ipAddress.IpVersion)
-	d.Set("dns_name", ipAddress.DnsName)
+	d.Set("ip_version", int(ipAddress.IpVersion))
+	if ipAddress.DnsName != nil {
+		d.Set("dns_name", *ipAddress.DnsName)
+	} else {
+		d.Set("dns_name", "")
+	}
 
 	return nil
 }

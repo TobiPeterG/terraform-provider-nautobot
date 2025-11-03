@@ -137,7 +137,12 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 		return diag.Errorf("prefix not found")
 	}
 
-	d.SetId(prefix.Id)
+	// Ensure the ID is present and set it as the Terraform resource ID
+	if prefix.Id == nil || *prefix.Id == "" {
+		return diag.Errorf("prefix returned no id")
+	}
+	resID := *prefix.Id
+	d.SetId(resID)
 
 	createdStr := ""
 	if prefix.Created.IsSet() && prefix.Created.Get() != nil {
@@ -150,9 +155,13 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 	}
 
 	// Set the fields directly in the resource data
-	d.Set("id", prefix.Id)
+	d.Set("id", resID)
 	d.Set("prefix", prefix.Prefix)
-	d.Set("description", prefix.Description)
+	if prefix.Description != nil {
+		d.Set("description", *prefix.Description)
+	} else {
+		d.Set("description", "")
+	}
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 
