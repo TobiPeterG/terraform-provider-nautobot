@@ -54,21 +54,25 @@ func resourceVirtualMachine() *schema.Resource {
 				Description: "Comments or notes about the virtual machine.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"tenant_id": {
 				Description: "Tenant associated with the virtual machine.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"platform_id": {
 				Description: "Platform or OS installed on the virtual machine.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"role_id": {
 				Description: "Role of the virtual machine.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"primary_ip4_id": {
 				Description: "Primary IPv4 address.",
@@ -86,6 +90,7 @@ func resourceVirtualMachine() *schema.Resource {
 				Description: "Software version installed on the virtual machine.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"software_image_files": {
 				Description: "Software image files associated with the software version.",
@@ -192,70 +197,82 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 	if v, ok := d.GetOk("tenant_id"); ok {
 		tenant := v.(string)
-		var nullableTenant nb.NullableBulkWritableCircuitRequestTenant
-		nullableTenant.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(tenant),
-			},
-		})
-		vm.Tenant = nullableTenant
+		if tenant != "" {
+			var nullableTenant nb.NullableBulkWritableCircuitRequestTenant
+			nullableTenant.Set(&nb.BulkWritableCircuitRequestTenant{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(tenant),
+				},
+			})
+			vm.Tenant = nullableTenant
+		}
 	}
 	if v, ok := d.GetOk("platform_id"); ok {
 		platform := v.(string)
-		var nullablePlatform nb.NullableBulkWritableCircuitRequestTenant
-		nullablePlatform.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(platform),
-			},
-		})
-		vm.Platform = nullablePlatform
+		if platform != "" {
+			var nullablePlatform nb.NullableBulkWritableCircuitRequestTenant
+			nullablePlatform.Set(&nb.BulkWritableCircuitRequestTenant{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(platform),
+				},
+			})
+			vm.Platform = nullablePlatform
+		}
 	}
 
 	if v, ok := d.GetOk("role_id"); ok {
 		role := v.(string)
-		var nullableRole nb.NullableBulkWritableCircuitRequestTenant
-		nullableRole.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(role),
-			},
-		})
-		vm.Role = nullableRole
+		if role != "" {
+			var nullableRole nb.NullableBulkWritableCircuitRequestTenant
+			nullableRole.Set(&nb.BulkWritableCircuitRequestTenant{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(role),
+				},
+			})
+			vm.Role = nullableRole
+		}
 	}
 
 	if v, ok := d.GetOk("primary_ip4_id"); ok {
 		ip4 := v.(string)
-		var nullableIP4 nb.NullablePrimaryIPv4
-		primaryIPv4 := &nb.PrimaryIPv4{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(ip4),
-			},
+		if ip4 != "" {
+			var nullableIP4 nb.NullablePrimaryIPv4
+			primaryIPv4 := &nb.PrimaryIPv4{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(ip4),
+				},
+			}
+			nullableIP4.Set(primaryIPv4)
+			vm.PrimaryIp4 = nullableIP4
 		}
-		nullableIP4.Set(primaryIPv4)
-		vm.PrimaryIp4 = nullableIP4
 	}
 
 	if v, ok := d.GetOk("primary_ip6_id"); ok {
 		ip6 := v.(string)
-		var nullableIP6 nb.NullablePrimaryIPv6
-		primaryIPv6 := &nb.PrimaryIPv6{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(ip6),
-			},
+		if ip6 != "" {
+			var nullableIP6 nb.NullablePrimaryIPv6
+			primaryIPv6 := &nb.PrimaryIPv6{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(ip6),
+				},
+			}
+			nullableIP6.Set(primaryIPv6)
+			vm.PrimaryIp6 = nullableIP6
 		}
-		nullableIP6.Set(primaryIPv6)
-		vm.PrimaryIp6 = nullableIP6
 	}
 
 	if v, ok := d.GetOk("software_version_id"); ok {
 		softwareVersion := v.(string)
-		var nullableSoftwareVersion nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
-		softwareVersionStruct := &nb.BulkWritableVirtualMachineRequestSoftwareVersion{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(softwareVersion),
-			},
+		if softwareVersion != "" {
+			var nullableSoftwareVersion nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+			softwareVersionStruct := &nb.BulkWritableVirtualMachineRequestSoftwareVersion{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(softwareVersion),
+				},
+			}
+			nullableSoftwareVersion.Set(softwareVersionStruct)
+			vm.SoftwareVersion = nullableSoftwareVersion
 		}
-		nullableSoftwareVersion.Set(softwareVersionStruct)
-		vm.SoftwareVersion = nullableSoftwareVersion
 	}
 
 	if v, ok := d.GetOk("software_image_files"); ok {
@@ -273,9 +290,13 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 	if v, ok := d.GetOk("tags_ids"); ok {
 		var tags []nb.BulkWritableCableRequestStatus
 		for _, tag := range v.([]interface{}) {
+			tagStr := tag.(string)
+			if tagStr == "" {
+				continue
+			}
 			tags = append(tags, nb.BulkWritableCableRequestStatus{
 				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(tag.(string)),
+					String: stringPtr(tagStr),
 				},
 			})
 		}
@@ -334,20 +355,24 @@ func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, met
 	// Map the retrieved data back to Terraform state
 	d.Set("name", vm.Name)
 
-	// cluster_id
+	// cluster_id -> default ""
+	clusterID := ""
 	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
-		d.Set("cluster_id", *vm.Cluster.Id.String)
+		clusterID = *vm.Cluster.Id.String
 	}
+	d.Set("cluster_id", clusterID)
 
-	// status -> name
+	// status -> name -> default ""
+	statusName := ""
 	if vm.Status.Id != nil && vm.Status.Id.String != nil {
 		statusID := *vm.Status.Id.String
-		statusName, err := getStatusName(ctx, c, t, statusID)
-		if err != nil {
-			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		if statusID != "" {
+			if n, err := getStatusName(ctx, c, t, statusID); err == nil {
+				statusName = n
+			}
 		}
-		d.Set("status", statusName)
 	}
+	d.Set("status", statusName)
 
 	// vcpus, memory, disk (nullable ints)
 	if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
@@ -373,49 +398,67 @@ func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, met
 		d.Set("comments", "")
 	}
 
-	// Handle nullable fields using IsSet and Get methods
+	// tenant_id -> default ""
+	tenantID := ""
 	if vm.Tenant.IsSet() {
 		tenant := vm.Tenant.Get()
 		if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			d.Set("tenant_id", *tenant.Id.String)
+			tenantID = *tenant.Id.String
 		}
 	}
+	d.Set("tenant_id", tenantID)
 
+	// platform_id -> default ""
+	platformID := ""
 	if vm.Platform.IsSet() {
 		platform := vm.Platform.Get()
 		if platform != nil && platform.Id != nil && platform.Id.String != nil {
-			d.Set("platform_id", *platform.Id.String)
+			platformID = *platform.Id.String
 		}
 	}
+	d.Set("platform_id", platformID)
 
+	// role_id -> default ""
+	roleID := ""
 	if vm.Role.IsSet() {
 		role := vm.Role.Get()
 		if role != nil && role.Id != nil && role.Id.String != nil {
-			d.Set("role_id", *role.Id.String)
+			roleID = *role.Id.String
 		}
 	}
+	d.Set("role_id", roleID)
 
+	// primary_ip4_id -> default ""
+	primaryIPv4ID := ""
 	if vm.PrimaryIp4.IsSet() {
 		primaryIp4 := vm.PrimaryIp4.Get()
 		if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
-			d.Set("primary_ip4_id", *primaryIp4.Id.String)
+			primaryIPv4ID = *primaryIp4.Id.String
 		}
 	}
+	d.Set("primary_ip4_id", primaryIPv4ID)
 
+	// primary_ip6_id -> default ""
+	primaryIPv6ID := ""
 	if vm.PrimaryIp6.IsSet() {
 		primaryIp6 := vm.PrimaryIp6.Get()
 		if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
-			d.Set("primary_ip6_id", *primaryIp6.Id.String)
+			primaryIPv6ID = *primaryIp6.Id.String
 		}
 	}
+	d.Set("primary_ip6_id", primaryIPv6ID)
 
+	// software_version_id -> default ""
+	swVersionID := ""
 	if vm.SoftwareVersion.IsSet() {
 		softwareVersion := vm.SoftwareVersion.Get()
 		if softwareVersion != nil && softwareVersion.Id != nil && softwareVersion.Id.String != nil {
-			d.Set("software_version_id", *softwareVersion.Id.String)
+			swVersionID = *softwareVersion.Id.String
 		}
 	}
+	d.Set("software_version_id", swVersionID)
 
+	// software_image_files -> always set (empty list when none)
 	var imageFiles []map[string]string
 	for _, file := range vm.SoftwareImageFiles {
 		if file.Id != nil && file.Id.String != nil {
@@ -426,7 +469,8 @@ func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, met
 	}
 	d.Set("software_image_files", imageFiles)
 
-	var tags []string
+	// tags_ids -> always set (empty list when none)
+	tags := make([]string, 0, len(vm.Tags))
 	for _, tag := range vm.Tags {
 		if tag.Id != nil && tag.Id.String != nil {
 			tags = append(tags, *tag.Id.String)
@@ -514,70 +558,94 @@ func resourceVirtualMachineUpdate(ctx context.Context, d *schema.ResourceData, m
 	}
 	if d.HasChange("tenant_id") {
 		tenant := d.Get("tenant_id").(string)
-		var nullableTenant nb.NullableBulkWritableCircuitRequestTenant
-		nullableTenant.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(tenant),
-			},
-		})
-		vm.Tenant = nullableTenant
+		if tenant == "" {
+			vm.Tenant.Unset()
+		} else {
+			var nullableTenant nb.NullableBulkWritableCircuitRequestTenant
+			nullableTenant.Set(&nb.BulkWritableCircuitRequestTenant{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(tenant),
+				},
+			})
+			vm.Tenant = nullableTenant
+		}
 	}
 	if d.HasChange("platform_id") {
 		platform := d.Get("platform_id").(string)
-		var nullablePlatform nb.NullableBulkWritableCircuitRequestTenant
-		nullablePlatform.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(platform),
-			},
-		})
-		vm.Platform = nullablePlatform
+		if platform == "" {
+			vm.Platform.Unset()
+		} else {
+			var nullablePlatform nb.NullableBulkWritableCircuitRequestTenant
+			nullablePlatform.Set(&nb.BulkWritableCircuitRequestTenant{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(platform),
+				},
+			})
+			vm.Platform = nullablePlatform
+		}
 	}
 
 	if d.HasChange("role_id") {
 		role := d.Get("role_id").(string)
-		var nullableRole nb.NullableBulkWritableCircuitRequestTenant
-		nullableRole.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(role),
-			},
-		})
-		vm.Role = nullableRole
+		if role == "" {
+			vm.Role.Unset()
+		} else {
+			var nullableRole nb.NullableBulkWritableCircuitRequestTenant
+			nullableRole.Set(&nb.BulkWritableCircuitRequestTenant{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(role),
+				},
+			})
+			vm.Role = nullableRole
+		}
 	}
 
 	if d.HasChange("primary_ip4_id") {
 		ip4 := d.Get("primary_ip4_id").(string)
-		var nullableIP4 nb.NullablePrimaryIPv4
-		primaryIPv4 := &nb.PrimaryIPv4{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(ip4),
-			},
+		if ip4 == "" {
+			vm.PrimaryIp4.Unset()
+		} else {
+			var nullableIP4 nb.NullablePrimaryIPv4
+			primaryIPv4 := &nb.PrimaryIPv4{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(ip4),
+				},
+			}
+			nullableIP4.Set(primaryIPv4)
+			vm.PrimaryIp4 = nullableIP4
 		}
-		nullableIP4.Set(primaryIPv4)
-		vm.PrimaryIp4 = nullableIP4
 	}
 
 	if d.HasChange("primary_ip6_id") {
 		ip6 := d.Get("primary_ip6_id").(string)
-		var nullableIP6 nb.NullablePrimaryIPv6
-		primaryIPv6 := &nb.PrimaryIPv6{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(ip6),
-			},
+		if ip6 == "" {
+			vm.PrimaryIp6.Unset()
+		} else {
+			var nullableIP6 nb.NullablePrimaryIPv6
+			primaryIPv6 := &nb.PrimaryIPv6{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(ip6),
+				},
+			}
+			nullableIP6.Set(primaryIPv6)
+			vm.PrimaryIp6 = nullableIP6
 		}
-		nullableIP6.Set(primaryIPv6)
-		vm.PrimaryIp6 = nullableIP6
 	}
 
 	if d.HasChange("software_version_id") {
 		softwareVersion := d.Get("software_version_id").(string)
-		var nullableSoftwareVersion nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
-		softwareVersionStruct := &nb.BulkWritableVirtualMachineRequestSoftwareVersion{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(softwareVersion),
-			},
+		if softwareVersion == "" {
+			vm.SoftwareVersion.Unset()
+		} else {
+			var nullableSoftwareVersion nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+			softwareVersionStruct := &nb.BulkWritableVirtualMachineRequestSoftwareVersion{
+				Id: &nb.BulkWritableCableRequestStatusId{
+					String: stringPtr(softwareVersion),
+				},
+			}
+			nullableSoftwareVersion.Set(softwareVersionStruct)
+			vm.SoftwareVersion = nullableSoftwareVersion
 		}
-		nullableSoftwareVersion.Set(softwareVersionStruct)
-		vm.SoftwareVersion = nullableSoftwareVersion
 	}
 
 	if d.HasChange("software_image_files") {
@@ -597,6 +665,9 @@ func resourceVirtualMachineUpdate(ctx context.Context, d *schema.ResourceData, m
 		var tags []nb.BulkWritableCableRequestStatus
 		for _, tag := range d.Get("tags_ids").([]interface{}) {
 			tagID := tag.(string)
+			if tagID == "" {
+				continue
+			}
 			tags = append(tags, nb.BulkWritableCableRequestStatus{
 				Id: &nb.BulkWritableCableRequestStatusId{
 					String: &tagID,

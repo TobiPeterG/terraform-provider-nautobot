@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -27,11 +28,13 @@ func resourcePrimaryIPAddressForVM() *schema.Resource {
 				Description: "ID of the primary IPv4 address.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"primary_ip6_id": {
 				Description: "ID of the primary IPv6 address.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 		},
 	}
@@ -41,56 +44,48 @@ func resourcePrimaryIPAddressForVMCreate(ctx context.Context, d *schema.Resource
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
 	auth := context.WithValue(
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
 	vmID := d.Get("virtual_machine_id").(string)
 
-	// Prepare the VirtualMachineRequest to set the primary IP address
 	var vm nb.PatchedVirtualMachineRequest
 
 	if v, ok := d.GetOk("primary_ip4_id"); ok {
-		ip4 := v.(string)
-		var nullableIP4 nb.NullablePrimaryIPv4
-		primaryIPv4 := &nb.PrimaryIPv4{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(ip4),
-			},
+		ip4 := strings.TrimSpace(v.(string))
+		if ip4 != "" {
+			var nullableIP4 nb.NullablePrimaryIPv4
+			primaryIPv4 := &nb.PrimaryIPv4{
+				Id: &nb.BulkWritableCableRequestStatusId{String: stringPtr(ip4)},
+			}
+			nullableIP4.Set(primaryIPv4)
+			vm.PrimaryIp4 = nullableIP4
 		}
-		nullableIP4.Set(primaryIPv4)
-		vm.PrimaryIp4 = nullableIP4
 	}
 
 	if v, ok := d.GetOk("primary_ip6_id"); ok {
-		ip6 := v.(string)
-		var nullableIP6 nb.NullablePrimaryIPv6
-		primaryIPv6 := &nb.PrimaryIPv6{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(ip6),
-			},
+		ip6 := strings.TrimSpace(v.(string))
+		if ip6 != "" {
+			var nullableIP6 nb.NullablePrimaryIPv6
+			primaryIPv6 := &nb.PrimaryIPv6{
+				Id: &nb.BulkWritableCableRequestStatusId{String: stringPtr(ip6)},
+			}
+			nullableIP6.Set(primaryIPv6)
+			vm.PrimaryIp6 = nullableIP6
 		}
-		nullableIP6.Set(primaryIPv6)
-		vm.PrimaryIp6 = nullableIP6
 	}
 
-	// Update the virtual machine with the primary IP addresses
 	_, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesPartialUpdate(auth, vmID).PatchedVirtualMachineRequest(vm).Execute()
 	if err != nil {
 		return diag.Errorf("failed to set primary IP address for virtual machine: %s", err.Error())
 	}
 
-	// Use VM ID as the resource ID
 	d.SetId(vmID)
-
 	return resourcePrimaryIPAddressForVMRead(ctx, d, meta)
 }
 
@@ -98,41 +93,39 @@ func resourcePrimaryIPAddressForVMRead(ctx context.Context, d *schema.ResourceDa
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
 	auth := context.WithValue(
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
 	vmID := d.Id()
 
-	// Fetch the virtual machine by ID
 	vm, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesRetrieve(auth, vmID).Execute()
 	if err != nil {
 		d.SetId("")
 		return diag.Errorf("failed to read virtual machine: %s", err.Error())
 	}
 
-	// Set primary IPs if they exist
+	ip4 := ""
 	if vm.PrimaryIp4.IsSet() {
 		primaryIp4 := vm.PrimaryIp4.Get()
-		if primaryIp4 != nil && primaryIp4.Id != nil {
-			d.Set("primary_ip4_id", *primaryIp4.Id.String)
+		if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
+			ip4 = *primaryIp4.Id.String
 		}
 	}
+	d.Set("primary_ip4_id", ip4)
 
+	ip6 := ""
 	if vm.PrimaryIp6.IsSet() {
 		primaryIp6 := vm.PrimaryIp6.Get()
-		if primaryIp6 != nil && primaryIp6.Id != nil {
-			d.Set("primary_ip6_id", *primaryIp6.Id.String)
+		if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
+			ip6 = *primaryIp6.Id.String
 		}
 	}
+	d.Set("primary_ip6_id", ip6)
 
 	d.Set("virtual_machine_id", vmID)
 
@@ -140,7 +133,6 @@ func resourcePrimaryIPAddressForVMRead(ctx context.Context, d *schema.ResourceDa
 }
 
 func resourcePrimaryIPAddressForVMUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	// The update function is identical to the create function since the action is the same
 	return resourcePrimaryIPAddressForVMCreate(ctx, d, meta)
 }
 
@@ -148,40 +140,31 @@ func resourcePrimaryIPAddressForVMDelete(ctx context.Context, d *schema.Resource
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
 	auth := context.WithValue(
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
 	vmID := d.Id()
 
-	// Prepare the VirtualMachineRequest to remove the primary IP addresses
 	var vm nb.PatchedVirtualMachineRequest
 	var nullableIP4 nb.NullablePrimaryIPv4
 	var nullableIP6 nb.NullablePrimaryIPv6
 
-	// Set both IPs to null
 	nullableIP4.Unset()
 	nullableIP6.Unset()
 
 	vm.PrimaryIp4 = nullableIP4
 	vm.PrimaryIp6 = nullableIP6
 
-	// Update the virtual machine to unset the primary IPs
 	_, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesPartialUpdate(auth, vmID).PatchedVirtualMachineRequest(vm).Execute()
 	if err != nil {
 		return diag.Errorf("failed to remove primary IP address for virtual machine: %s", err.Error())
 	}
 
-	// Clear the ID from the state
 	d.SetId("")
-
 	return nil
 }

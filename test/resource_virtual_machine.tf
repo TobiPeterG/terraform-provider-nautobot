@@ -16,3 +16,7 @@ resource "nautobot_virtual_machine" "new" {
 
 #  tags_ids = ["tag1", "tag2"] # Optional tags
 }
+
+output "resource_virtual_machine" {
+  value = nautobot_virtual_machine.new
+}

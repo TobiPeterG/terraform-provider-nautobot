@@ -37,6 +37,7 @@ func resourceAvailableIPAddress() *schema.Resource {
 				Description: "DNS name associated with the IP address.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"status": {
 				Description: "Status of the allocated IP address.",
@@ -51,60 +52,40 @@ func resourceAvailableIPAddressCreate(ctx context.Context, d *schema.ResourceDat
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
 	prefixID := d.Get("prefix_id").(string)
 
-	// Convert status name to ID
 	statusName := d.Get("status").(string)
 	statusID, err := getStatusID(ctx, c, t, statusName)
 	if err != nil {
 		return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
 	}
 
-	// Prepare the IP allocation request
 	ipRequest := nb.IPAllocationRequest{
 		Status: nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &statusID,
-			},
+			Id: &nb.BulkWritableCableRequestStatusId{String: &statusID},
 		},
 	}
-
-	if v, ok := d.GetOk("dns_name"); ok {
-		dns_name := v.(string)
-		ipRequest.DnsName = &dns_name
+	if v, ok := d.GetOk("dns_name"); ok && v.(string) != "" {
+		dnsName := v.(string)
+		ipRequest.DnsName = &dnsName
 	}
 
-	// Allocate the IP (this automatically chooses the first available IP from the prefix)
 	rsp, _, err := c.IpamAPI.IpamPrefixesAvailableIpsCreate(auth, prefixID).IPAllocationRequest([]nb.IPAllocationRequest{ipRequest}).Execute()
 	if err != nil {
 		return diag.Errorf("failed to allocate IP address: %s", err.Error())
 	}
-
-	// Ensure we have at least one result
 	if len(rsp) == 0 {
 		return diag.Errorf("no IP address returned from allocation")
 	}
-
-	// Ensure the ID is present and set it as the Terraform resource ID
 	if rsp[0].Id == nil || *rsp[0].Id == "" {
 		return diag.Errorf("allocated IP address returned no id")
 	}
-	ipID := *rsp[0].Id
-	d.SetId(ipID)
+	d.SetId(*rsp[0].Id)
 
-	// Set resource data (assuming a single result, adjust if needed)
 	d.Set("address", rsp[0].Address)
 	d.Set("ip_version", int(rsp[0].IpVersion))
 	if rsp[0].DnsName != nil {
@@ -120,19 +101,10 @@ func resourceAvailableIPAddressRead(ctx context.Context, d *schema.ResourceData,
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
-	// Fetch the allocated IP by ID
 	ipID := d.Id()
 	ipAddress, _, err := c.IpamAPI.IpamIpAddressesRetrieve(auth, ipID).Execute()
 	if err != nil {
@@ -140,7 +112,6 @@ func resourceAvailableIPAddressRead(ctx context.Context, d *schema.ResourceData,
 		return diag.Errorf("failed to read IP address %s: %s", ipID, err.Error())
 	}
 
-	// Map the retrieved data back to Terraform state
 	d.Set("address", ipAddress.Address)
 	d.Set("ip_version", int(ipAddress.IpVersion))
 	if ipAddress.DnsName != nil {
@@ -156,17 +127,9 @@ func resourceAvailableIPAddressUpdate(ctx context.Context, d *schema.ResourceDat
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
 	ipID := d.Id()
 
@@ -178,20 +141,20 @@ func resourceAvailableIPAddressUpdate(ctx context.Context, d *schema.ResourceDat
 		if err != nil {
 			return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
 		}
-
 		ipAddress.Status = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &statusID,
-			},
+			Id: &nb.BulkWritableCableRequestStatusId{String: &statusID},
 		}
 	}
 
 	if d.HasChange("dns_name") {
 		dnsName := d.Get("dns_name").(string)
-		ipAddress.DnsName = &dnsName
+		if dnsName == "" {
+			ipAddress.DnsName = nil
+		} else {
+			ipAddress.DnsName = &dnsName
+		}
 	}
 
-	// Call the API to update the allocated IP address
 	_, _, err := c.IpamAPI.IpamIpAddressesPartialUpdate(auth, ipID).PatchedIPAddressRequest(ipAddress).Execute()
 	if err != nil {
 		return diag.Errorf("failed to update IP address %s: %s", ipID, err.Error())
@@ -204,27 +167,16 @@ func resourceAvailableIPAddressDelete(ctx context.Context, d *schema.ResourceDat
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
-	// Fetch the IP address ID and delete it
 	ipID := d.Id()
 	_, err := c.IpamAPI.IpamIpAddressesDestroy(auth, ipID).Execute()
 	if err != nil {
 		return diag.Errorf("failed to delete IP address %s: %s", ipID, err.Error())
 	}
 
-	// Clear the ID from the state
 	d.SetId("")
-
 	return nil
 }

@@ -53,6 +53,7 @@ func resourceClusterType() *schema.Resource {
 				Description: "Description for the cluster type.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"created": {
 				Description: "Creation date of the cluster type.",
@@ -77,17 +78,9 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
 	clusterTypeName := d.Get("name").(string)
 	existingClusterTypes, _, err := c.VirtualizationAPI.VirtualizationClusterTypesList(auth).Name([]string{clusterTypeName}).Execute()
@@ -95,7 +88,6 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 		return diag.Errorf("failed to list cluster types: %s", err.Error())
 	}
 
-	// If a cluster type with the same name exists, use its ID and skip creation
 	if len(existingClusterTypes.Results) > 0 {
 		if existingClusterTypes.Results[0].Id == nil || *existingClusterTypes.Results[0].Id == "" {
 			return diag.Errorf("existing cluster type %q returned no id", clusterTypeName)
@@ -104,22 +96,18 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 		return resourceClusterTypeRead(ctx, d, meta)
 	}
 
-	// Prepare ClusterTypeRequest
 	var clusterType nb.ClusterTypeRequest
 	clusterType.Name = clusterTypeName
-
-	if v, ok := d.GetOk("description"); ok {
+	if v, ok := d.GetOk("description"); ok && v.(string) != "" {
 		description := v.(string)
 		clusterType.Description = &description
 	}
 
-	// Create the cluster type using VirtualizationAPI
 	rsp, _, err := c.VirtualizationAPI.VirtualizationClusterTypesCreate(auth).ClusterTypeRequest(clusterType).Execute()
 	if err != nil {
 		return diag.Errorf("failed to create cluster type: %s", err.Error())
 	}
 
-	// Set resource ID (Cluster Type ID)
 	if rsp.Id == nil || *rsp.Id == "" {
 		return diag.Errorf("created cluster type returned no id")
 	}
@@ -132,26 +120,16 @@ func resourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta i
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
-	// Fetch cluster type by ID using VirtualizationAPI
 	clusterTypeId := d.Id()
 	clusterType, _, err := c.VirtualizationAPI.VirtualizationClusterTypesRetrieve(auth, clusterTypeId).Execute()
 	if err != nil {
 		return diag.Errorf("failed to read cluster type: %s", err.Error())
 	}
 
-	// Format times
 	createdStr := ""
 	if clusterType.Created.IsSet() && clusterType.Created.Get() != nil {
 		createdStr = clusterType.Created.Get().Format(time.RFC3339)
@@ -161,7 +139,6 @@ func resourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta i
 		lastUpdatedStr = clusterType.LastUpdated.Get().Format(time.RFC3339)
 	}
 
-	// Map the retrieved data back to Terraform state
 	d.Set("name", clusterType.Name)
 	d.Set("object_type", clusterType.ObjectType)
 	d.Set("display", clusterType.Display)
@@ -185,31 +162,25 @@ func resourceClusterTypeUpdate(ctx context.Context, d *schema.ResourceData, meta
 
 	clusterTypeId := d.Id()
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
 	var clusterType nb.PatchedClusterTypeRequest
 
-	// Update the fields that have changed
 	if d.HasChange("name") {
 		name := d.Get("name").(string)
 		clusterType.Name = &name
 	}
 	if d.HasChange("description") {
 		description := d.Get("description").(string)
-		clusterType.Description = &description
+		if description == "" {
+			clusterType.Description = nil
+		} else {
+			clusterType.Description = &description
+		}
 	}
 
-	// Call the API to update the cluster type
 	_, _, err := c.VirtualizationAPI.VirtualizationClusterTypesPartialUpdate(auth, clusterTypeId).PatchedClusterTypeRequest(clusterType).Execute()
 	if err != nil {
 		return diag.Errorf("failed to update cluster type: %s", err.Error())
@@ -222,27 +193,16 @@ func resourceClusterTypeDelete(ctx context.Context, d *schema.ResourceData, meta
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	auth := context.WithValue(ctx, nb.ContextAPIKeys, map[string]nb.APIKey{
+		"tokenAuth": {Key: t, Prefix: "Token"},
+	})
 
-	// Delete the cluster type by ID using VirtualizationAPI
 	clusterTypeId := d.Id()
 	_, err := c.VirtualizationAPI.VirtualizationClusterTypesDestroy(auth, clusterTypeId).Execute()
 	if err != nil {
 		return diag.Errorf("failed to delete cluster type: %s", err.Error())
 	}
 
-	// Clear the ID
 	d.SetId("")
-
 	return nil
 }

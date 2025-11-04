@@ -7,7 +7,7 @@ variable "manufacturer_name" {
 }
 
 # Only returns the manufacturer
-output "data_source_example" {
+output "data_manufacturers_example" {
   value = {
     for manufacturer in data.nautobot_manufacturers.all.manufacturers :
     manufacturer.id => manufacturer

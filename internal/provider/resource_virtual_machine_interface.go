@@ -29,6 +29,7 @@ func resourceVMInterface() *schema.Resource {
 				Description: "MAC address of the interface.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"enabled": {
 				Description: "Whether the interface is enabled.",
@@ -40,16 +41,19 @@ func resourceVMInterface() *schema.Resource {
 				Description: "MTU size of the interface.",
 				Type:        schema.TypeInt,
 				Optional:    true,
+				Default:     0,
 			},
 			"mode": {
 				Description: "Mode of the interface.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"description": {
 				Description: "Description of the interface.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "",
 			},
 			"status": {
 				Description: "Status of the VM interface.",
@@ -65,13 +69,11 @@ func resourceVMInterface() *schema.Resource {
 				Description: "Untagged VLAN ID associated with the interface.",
 				Type:        schema.TypeString,
 				Optional:    true,
-				Computed:    true,
 			},
 			"tags_ids": {
 				Description: "Tags associated with the interface.",
 				Type:        schema.TypeList,
 				Optional:    true,
-				Computed:    true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -107,10 +109,7 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
@@ -146,13 +145,11 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 	var vmInterface nb.WritableVMInterfaceRequest
 	vmInterface.Name = interfaceName
 	vmInterface.Status = nb.BulkWritableCableRequestStatus{
-		Id: &nb.BulkWritableCableRequestStatusId{
-			String: &statusID,
-		},
+		Id: &nb.BulkWritableCableRequestStatusId{String: &statusID},
 	}
 
 	// Set optional fields
-	if v, ok := d.GetOk("mac_address"); ok {
+	if v, ok := d.GetOk("mac_address"); ok && v.(string) != "" {
 		vmInterface.MacAddress.Set(stringPtr(v.(string)))
 	}
 	if v, ok := d.GetOk("enabled"); ok {
@@ -163,15 +160,13 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 		mtu := int32(v.(int))
 		vmInterface.Mtu.Set(&mtu)
 	}
-	if v, ok := d.GetOk("description"); ok {
+	if v, ok := d.GetOk("description"); ok && v.(string) != "" {
 		desc := v.(string)
 		vmInterface.Description = &desc
 	}
 
 	// Handle virtual machine ID
-	vmInterface.VirtualMachine.Id = &nb.BulkWritableCableRequestStatusId{
-		String: &virtualMachineID,
-	}
+	vmInterface.VirtualMachine.Id = &nb.BulkWritableCableRequestStatusId{String: &virtualMachineID}
 
 	// Create the interface
 	rsp, _, err := c.VirtualizationAPI.VirtualizationInterfacesCreate(auth).WritableVMInterfaceRequest(vmInterface).Execute()
@@ -189,8 +184,11 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 	if v, ok := d.GetOk("ip_addresses"); ok {
 		ipAddresses := v.([]interface{})
 		for _, ip := range ipAddresses {
-			err := assignIPAddressToVMInterface(ctx, c, t, ip.(string), *rsp.Id)
-			if err != nil {
+			str := ip.(string)
+			if str == "" {
+				continue
+			}
+			if err := assignIPAddressToVMInterface(ctx, c, t, str, *rsp.Id); err != nil {
 				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
 			}
 		}
@@ -208,10 +206,7 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
@@ -253,27 +248,33 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 		d.Set("description", "")
 	}
 
-	// status -> name
+	// status -> name (default to "")
+	statusName := ""
 	if vmInterface.Status.Id != nil && vmInterface.Status.Id.String != nil {
 		statusID := *vmInterface.Status.Id.String
-		statusName, err := getStatusName(ctx, c, t, statusID)
-		if err != nil {
-			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		if statusID != "" {
+			if n, err := getStatusName(ctx, c, t, statusID); err == nil {
+				statusName = n
+			}
 		}
-		d.Set("status", statusName)
 	}
+	d.Set("status", statusName)
 
-	// virtual_machine_id
+	// virtual_machine_id -> default ""
+	vmID := ""
 	if vmInterface.VirtualMachine.Id != nil && vmInterface.VirtualMachine.Id.String != nil {
-		d.Set("virtual_machine_id", *vmInterface.VirtualMachine.Id.String)
+		vmID = *vmInterface.VirtualMachine.Id.String
 	}
+	d.Set("virtual_machine_id", vmID)
 
-	// untagged_vlan_id
+	// untagged_vlan_id -> default ""
+	untagged := ""
 	if vmInterface.UntaggedVlan.IsSet() {
 		if uv := vmInterface.UntaggedVlan.Get(); uv != nil && uv.Id != nil && uv.Id.String != nil {
-			d.Set("untagged_vlan_id", *uv.Id.String)
+			untagged = *uv.Id.String
 		}
 	}
+	d.Set("untagged_vlan_id", untagged)
 
 	// created / last_updated
 	createdStr := ""
@@ -288,8 +289,8 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 	}
 	d.Set("last_updated", lastUpdatedStr)
 
-	// tags_ids
-	var tags []string
+	// tags_ids -> always set list
+	tags := make([]string, 0, len(vmInterface.Tags))
 	for _, tag := range vmInterface.Tags {
 		if tag.Id != nil && tag.Id.String != nil {
 			tags = append(tags, *tag.Id.String)
@@ -297,7 +298,7 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 	}
 	d.Set("tags_ids", tags)
 
-	// Fetch assigned IP addresses
+	// ip_addresses -> always set list
 	assignedIPs := []string{}
 	for _, ip := range vmInterface.IpAddresses {
 		if ip.Id != nil && ip.Id.String != nil {
@@ -306,9 +307,16 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 	}
 	d.Set("ip_addresses", assignedIPs)
 
+	// mode -> default ""
+	mode := ""
 	if vmInterface.Mode != nil {
-		d.Set("mode", vmInterface.Mode.Label)
+		if vmInterface.Mode.Label != nil {
+			mode = string(*vmInterface.Mode.Label)
+		} else if vmInterface.Mode.Value != nil {
+			mode = string(*vmInterface.Mode.Value)
+		}
 	}
+	d.Set("mode", mode)
 
 	return nil
 }
@@ -326,10 +334,7 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
@@ -340,7 +345,11 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 	}
 	if d.HasChange("mac_address") {
 		mac := d.Get("mac_address").(string)
-		vmInterface.MacAddress.Set(&mac)
+		if mac == "" {
+			vmInterface.MacAddress.Unset()
+		} else {
+			vmInterface.MacAddress.Set(&mac)
+		}
 	}
 	if d.HasChange("enabled") {
 		enabled := d.Get("enabled").(bool)
@@ -352,7 +361,11 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 	}
 	if d.HasChange("description") {
 		description := d.Get("description").(string)
-		vmInterface.Description = &description
+		if description == "" {
+			vmInterface.Description = nil
+		} else {
+			vmInterface.Description = &description
+		}
 	}
 	if d.HasChange("status") {
 		statusName := d.Get("status").(string)
@@ -361,17 +374,13 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 			return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
 		}
 		vmInterface.Status = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &statusID,
-			},
+			Id: &nb.BulkWritableCableRequestStatusId{String: &statusID},
 		}
 	}
 	if d.HasChange("virtual_machine_id") {
 		vmID := d.Get("virtual_machine_id").(string)
 		vmInterface.VirtualMachine = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &vmID,
-			},
+			Id: &nb.BulkWritableCableRequestStatusId{String: &vmID},
 		}
 	}
 
@@ -387,16 +396,22 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 
 		// Remove old IP addresses
 		for _, oldIP := range oldIPsRaw.([]interface{}) {
-			err := removeIPAddressFromVMInterface(ctx, c, t, oldIP.(string), vmInterfaceId)
-			if err != nil {
+			str := oldIP.(string)
+			if str == "" {
+				continue
+			}
+			if err := removeIPAddressFromVMInterface(ctx, c, t, str, vmInterfaceId); err != nil {
 				return diag.Errorf("failed to remove IP address from VM interface: %s", err.Error())
 			}
 		}
 
 		// Assign new IP addresses
 		for _, newIP := range newIPsRaw.([]interface{}) {
-			err := assignIPAddressToVMInterface(ctx, c, t, newIP.(string), vmInterfaceId)
-			if err != nil {
+			str := newIP.(string)
+			if str == "" {
+				continue
+			}
+			if err := assignIPAddressToVMInterface(ctx, c, t, str, vmInterfaceId); err != nil {
 				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
 			}
 		}
@@ -414,10 +429,7 @@ func resourceVMInterfaceDelete(ctx context.Context, d *schema.ResourceData, meta
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: t, Prefix: "Token"},
 		},
 	)
 
@@ -441,65 +453,44 @@ func assignIPAddressToVMInterface(ctx context.Context, c *nb.APIClient, token, i
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    token,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: token, Prefix: "Token"},
 		},
 	)
 
-	// Wrap the ipAddressID and vmInterfaceID in BulkWritableCableRequestStatusId
 	ipAddressStatusId := nb.BulkWritableCableRequestStatusId{String: &ipAddressID}
 	vmInterfaceStatusId := nb.BulkWritableCableRequestStatusId{String: &vmInterfaceID}
 
-	// Create BulkWritableCircuitRequestTenant for the VM Interface
-	vmInterfaceTenant := nb.BulkWritableCircuitRequestTenant{
-		Id: &vmInterfaceStatusId,
-	}
-
-	// Create the NullableBulkWritableCircuitRequestTenant as a value (not a pointer)
+	vmInterfaceTenant := nb.BulkWritableCircuitRequestTenant{Id: &vmInterfaceStatusId}
 	vmInterfaceNullableTenant := nb.NullableBulkWritableCircuitRequestTenant{}
 	vmInterfaceNullableTenant.Set(&vmInterfaceTenant)
 
-	// Prepare the request to assign the IP address to the VM interface
 	ipToInterfaceRequest := nb.IPAddressToInterfaceRequest{
-		IpAddress: nb.BulkWritableCableRequestStatus{
-			Id: &ipAddressStatusId, // Assign the IP address ID
-		},
-		// Properly set VmInterface using NullableBulkWritableCircuitRequestTenant
-		VmInterface: vmInterfaceNullableTenant, // Use the value, not a pointer
+		IpAddress:   nb.BulkWritableCableRequestStatus{Id: &ipAddressStatusId},
+		VmInterface: vmInterfaceNullableTenant,
 	}
 
-	// Call the API to link the IP address with the VM interface
 	_, _, err := c.IpamAPI.IpamIpAddressToInterfaceCreate(auth).IPAddressToInterfaceRequest(ipToInterfaceRequest).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to assign IP address to VM interface: %v", err)
 	}
-
 	return nil
 }
 
-// Helper function to remove an IP address from a VM interface
 func removeIPAddressFromVMInterface(ctx context.Context, c *nb.APIClient, token, ipAddressID, vmInterfaceID string) error {
 	// Auth context
 	auth := context.WithValue(
 		ctx,
 		nb.ContextAPIKeys,
 		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    token,
-				Prefix: "Token",
-			},
+			"tokenAuth": {Key: token, Prefix: "Token"},
 		},
 	)
 
-	// Retrieve the IP address object to find the related VM interface assignment
 	ipAddress, _, err := c.IpamAPI.IpamIpAddressesRetrieve(auth, ipAddressID).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve IP address: %v", err)
 	}
 
-	// Look for the specific VM interface assignment in the IP address object
 	var assignmentID string
 	for _, vmInterface := range ipAddress.VmInterfaces {
 		if vmInterface.Id != nil && vmInterface.Id.String != nil && *vmInterface.Id.String == vmInterfaceID {
@@ -508,16 +499,13 @@ func removeIPAddressFromVMInterface(ctx context.Context, c *nb.APIClient, token,
 		}
 	}
 
-	// If no assignment is found, return an error
 	if assignmentID == "" {
 		return fmt.Errorf("no assignment found for IP address %s and VM interface %s", ipAddressID, vmInterfaceID)
 	}
 
-	// Call IpamIpAddressToInterfaceDestroy to remove the assignment
 	_, err = c.IpamAPI.IpamIpAddressToInterfaceDestroy(auth, assignmentID).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to remove IP address assignment: %v", err)
 	}
-
 	return nil
 }

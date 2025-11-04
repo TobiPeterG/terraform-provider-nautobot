@@ -7,3 +7,7 @@ resource "nautobot_vm_interface" "new" {
     nautobot_available_ip_address.example.id
   ]
 }
+
+output "resource_vm_interface" {
+  value = nautobot_vm_interface.new
+}

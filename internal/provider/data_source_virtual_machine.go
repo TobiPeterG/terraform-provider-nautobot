@@ -183,57 +183,71 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 
-	// Extract additional fields
+	// Extract additional fields (default to "")
+	clusterID := ""
 	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
-		d.Set("cluster_id", *vm.Cluster.Id.String)
+		clusterID = *vm.Cluster.Id.String
 	}
+	d.Set("cluster_id", clusterID)
 
+	statusName := ""
 	if vm.Status.Id != nil && vm.Status.Id.String != nil {
 		statusID := *vm.Status.Id.String
-		statusName, err := getStatusName(ctx, c, t, statusID)
-		if err != nil {
-			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		if statusID != "" {
+			if n, err := getStatusName(ctx, c, t, statusID); err == nil {
+				statusName = n
+			}
 		}
-		d.Set("status", statusName)
 	}
+	d.Set("status", statusName)
 
+	tenantID := ""
 	if vm.Tenant.IsSet() {
 		tenant := vm.Tenant.Get()
-		if tenant != nil && tenant.Id != nil {
-			d.Set("tenant_id", *tenant.Id.String)
+		if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
+			tenantID = *tenant.Id.String
 		}
 	}
+	d.Set("tenant_id", tenantID)
 
+	platformID := ""
 	if vm.Platform.IsSet() {
 		platform := vm.Platform.Get()
-		if platform != nil && platform.Id != nil {
-			d.Set("platform_id", *platform.Id.String)
+		if platform != nil && platform.Id != nil && platform.Id.String != nil {
+			platformID = *platform.Id.String
 		}
 	}
+	d.Set("platform_id", platformID)
 
+	roleID := ""
 	if vm.Role.IsSet() {
 		role := vm.Role.Get()
-		if role != nil && role.Id != nil {
-			d.Set("role_id", *role.Id.String)
+		if role != nil && role.Id != nil && role.Id.String != nil {
+			roleID = *role.Id.String
 		}
 	}
+	d.Set("role_id", roleID)
 
+	primaryIPv4ID := ""
 	if vm.PrimaryIp4.IsSet() {
 		primaryIp4 := vm.PrimaryIp4.Get()
-		if primaryIp4 != nil && primaryIp4.Id != nil {
-			d.Set("primary_ip4_id", *primaryIp4.Id.String)
+		if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
+			primaryIPv4ID = *primaryIp4.Id.String
 		}
 	}
+	d.Set("primary_ip4_id", primaryIPv4ID)
 
+	primaryIPv6ID := ""
 	if vm.PrimaryIp6.IsSet() {
 		primaryIp6 := vm.PrimaryIp6.Get()
-		if primaryIp6 != nil && primaryIp6.Id != nil {
-			d.Set("primary_ip6_id", *primaryIp6.Id.String)
+		if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
+			primaryIPv6ID = *primaryIp6.Id.String
 		}
 	}
+	d.Set("primary_ip6_id", primaryIPv6ID)
 
-	// Handle tags -> []string of tag IDs
-	var tags []string
+	// Handle tags
+	tags := make([]interface{}, 0, len(vm.Tags))
 	for _, tag := range vm.Tags {
 		if tag.Id != nil && tag.Id.String != nil {
 			tags = append(tags, *tag.Id.String)

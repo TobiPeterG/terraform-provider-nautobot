@@ -11,6 +11,10 @@ resource "nautobot_cluster" "new" {
 #  tags_id            = ["tag1", "tag2"]
 }
 
+output "resource_cluster_new" {
+  value = nautobot_cluster.new
+}
+
 resource "nautobot_cluster" "new2" {
   name            = "My New Cluster 2"
   comments        = "This cluster was created using Terraform."
@@ -21,4 +25,8 @@ resource "nautobot_cluster" "new2" {
 #  tenant_id          = data.nautobot_tenant.example.id  # Referencing tenant data source
 #  location_id        = "your-location-id"
 #  tags_id            = ["tag1", "tag2"]
+}
+
+output "resource_cluster_new2" {
+  value = nautobot_cluster.new2
 }

@@ -144,27 +144,41 @@ func dataSourceClustersRead(ctx context.Context, d *schema.ResourceData, meta in
 		// Extract cluster_type_id safely
 		if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
 			itemMap["cluster_type_id"] = *cluster.ClusterType.Id.String
+		} else {
+			itemMap["cluster_type_id"] = ""
 		}
 
 		// Handle nullable ClusterGroup
 		if cluster.ClusterGroup.IsSet() {
 			if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil && clusterGroup.Id.String != nil {
 				itemMap["cluster_group_id"] = *clusterGroup.Id.String
+			} else {
+				itemMap["cluster_group_id"] = ""
 			}
+		} else {
+			itemMap["cluster_group_id"] = ""
 		}
 
 		// Handle nullable Tenant
 		if cluster.Tenant.IsSet() {
 			if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 				itemMap["tenant_id"] = *tenant.Id.String
+			} else {
+				itemMap["tenant_id"] = ""
 			}
+		} else {
+			itemMap["tenant_id"] = ""
 		}
 
 		// Handle nullable Location
 		if cluster.Location.IsSet() {
 			if location := cluster.Location.Get(); location != nil && location.Id != nil && location.Id.String != nil {
 				itemMap["location_id"] = *location.Id.String
+			} else {
+				itemMap["location_id"] = ""
 			}
+		} else {
+			itemMap["location_id"] = ""
 		}
 
 		// Handle Tags

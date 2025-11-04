@@ -120,26 +120,27 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 	}
 
 	results := rsp.Results
-	list := make([]map[string]interface{}, 0)
+	list := make([]map[string]interface{}, 0, len(results))
 
 	// Iterate over the results and map each VLAN to the format expected by Terraform
 	for _, vlan := range results {
+		// Times -> empty string if missing
 		createdStr := ""
 		if vlan.Created.IsSet() && vlan.Created.Get() != nil {
 			createdStr = vlan.Created.Get().Format(time.RFC3339)
 		}
-
 		lastUpdatedStr := ""
 		if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
 			lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
 		}
 
-		// Prepare itemMap with mandatory fields (ensure pointer fields are safely dereferenced)
+		// id -> empty string if missing
 		idStr := ""
 		if vlan.Id != nil {
 			idStr = *vlan.Id
 		}
 
+		// description -> empty string if missing
 		descStr := ""
 		if vlan.Description != nil {
 			descStr = *vlan.Description
@@ -154,41 +155,47 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 			"last_updated": lastUpdatedStr,
 		}
 
-		// Handle nullable VlanGroup
+		// vlan_group_id -> empty string when missing
+		vlanGroupID := ""
 		if vlan.VlanGroup.IsSet() {
-			if vlanGroup := vlan.VlanGroup.Get(); vlanGroup != nil && vlanGroup.Id != nil {
-				itemMap["vlan_group_id"] = *vlanGroup.Id
+			if vg := vlan.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
+				vlanGroupID = *vg.Id.String
 			}
 		}
+		itemMap["vlan_group_id"] = vlanGroupID
 
-		// Fetch status name from the status ID
+		// status -> resolve name; empty string when missing or lookup failure
+		statusName := ""
 		if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
 			statusID := *vlan.Status.Id.String
-			statusName, err := getStatusName(ctx, c, t, statusID)
-			if err != nil {
-				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+			if statusID != "" {
+				if name, err := getStatusName(ctx, c, t, statusID); err == nil {
+					statusName = name
+				}
 			}
-			itemMap["status"] = statusName
-		} else {
-			itemMap["status"] = ""
 		}
+		itemMap["status"] = statusName
 
-		// Handle nullable Tenant
+		// tenant_id -> empty string when missing
+		tenantID := ""
 		if vlan.Tenant.IsSet() {
 			if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-				itemMap["tenant_id"] = *tenant.Id.String
+				tenantID = *tenant.Id.String
 			}
 		}
+		itemMap["tenant_id"] = tenantID
 
-		// Handle nullable Role
+		// role_id -> empty string when missing
+		roleID := ""
 		if vlan.Role.IsSet() {
 			if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-				itemMap["role_id"] = *role.Id.String
+				roleID = *role.Id.String
 			}
 		}
+		itemMap["role_id"] = roleID
 
-		// Handle locations
-		var locations []string
+		// locations -> always a list; empty when none
+		locations := make([]string, 0, len(vlan.Locations))
 		for _, location := range vlan.Locations {
 			if location.Id != nil && location.Id.String != nil {
 				locations = append(locations, *location.Id.String)
@@ -196,8 +203,8 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 		}
 		itemMap["locations"] = locations
 
-		// Handle Tags
-		var tags []string
+		// tags_ids -> always a list; empty when none
+		tags := make([]string, 0, len(vlan.Tags))
 		for _, tag := range vlan.Tags {
 			if tag.Id != nil && tag.Id.String != nil {
 				tags = append(tags, *tag.Id.String)
@@ -205,7 +212,6 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 		}
 		itemMap["tags_ids"] = tags
 
-		// Add the VLAN to the list
 		list = append(list, itemMap)
 	}
 

@@ -144,68 +144,92 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 	resID := *prefix.Id
 	d.SetId(resID)
 
+	// Times -> empty string if missing
 	createdStr := ""
 	if prefix.Created.IsSet() && prefix.Created.Get() != nil {
 		createdStr = prefix.Created.Get().Format(time.RFC3339)
 	}
-
 	lastUpdatedStr := ""
 	if prefix.LastUpdated.IsSet() && prefix.LastUpdated.Get() != nil {
 		lastUpdatedStr = prefix.LastUpdated.Get().Format(time.RFC3339)
 	}
 
-	// Set the fields directly in the resource data
+	// Basic fields
 	d.Set("id", resID)
 	d.Set("prefix", prefix.Prefix)
+
+	// description -> empty string if missing
 	if prefix.Description != nil {
 		d.Set("description", *prefix.Description)
 	} else {
 		d.Set("description", "")
 	}
+
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 
-	// Handle nullable status
+	// status -> resolve to name; empty string when missing or unresolved
+	statusName := ""
 	if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
-		statusID := *prefix.Status.Id.String
-		statusName, err := getStatusName(ctx, c, t, statusID)
-		if err != nil {
-			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+		if statusID := *prefix.Status.Id.String; statusID != "" {
+			if name, err := getStatusName(ctx, c, t, statusID); err == nil {
+				statusName = name
+			}
 		}
-		d.Set("status", statusName)
 	}
+	d.Set("status", statusName)
 
+	// parent_id -> empty string when missing
+	parentID := ""
 	if prefix.Parent.IsSet() {
 		if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
-			d.Set("parent_id", *parent.Id.String)
+			parentID = *parent.Id.String
 		}
 	}
+	d.Set("parent_id", parentID)
 
-	// Handle nullable Tenant
+	// tenant_id -> empty string when missing
+	tenantID := ""
 	if prefix.Tenant.IsSet() {
 		if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			d.Set("tenant_id", *tenant.Id.String)
+			tenantID = *tenant.Id.String
 		}
 	}
+	d.Set("tenant_id", tenantID)
 
-	// Handle nullable Role
+	// role_id -> empty string when missing
+	roleID := ""
 	if prefix.Role.IsSet() {
 		if role := prefix.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-			d.Set("role_id", *role.Id.String)
+			roleID = *role.Id.String
 		}
 	}
+	d.Set("role_id", roleID)
 
-	// Handle nullable RIR
+	// rir_id -> empty string when missing
+	rirID := ""
 	if prefix.Rir.IsSet() {
 		if rir := prefix.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
-			d.Set("rir_id", *rir.Id.String)
+			rirID = *rir.Id.String
 		}
 	}
+	d.Set("rir_id", rirID)
 
-	// Handle nullable Namespace (without using IsSet)
+	// namespace_id -> empty string when missing
+	namespaceID := ""
 	if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
-		d.Set("namespace_id", *prefix.Namespace.Id.String)
+		namespaceID = *prefix.Namespace.Id.String
 	}
+	d.Set("namespace_id", namespaceID)
+
+	// vlan_id -> empty string when missing
+	vlanIDOut := ""
+	if prefix.Vlan.IsSet() {
+		if v := prefix.Vlan.Get(); v != nil && v.Id != nil && v.Id.String != nil {
+			vlanIDOut = *v.Id.String
+		}
+	}
+	d.Set("vlan_id", vlanIDOut)
 
 	return diags
 }

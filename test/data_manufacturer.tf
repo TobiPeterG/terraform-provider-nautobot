@@ -3,10 +3,6 @@ data "nautobot_manufacturer" "example" {
   name = nautobot_manufacturer.new.name
 }
 
-output "manufacturer_details" {
+output "data_manufacturer" {
   value = data.nautobot_manufacturer.example
-}
-
-output "manufacturer_id" {
-  value = data.nautobot_manufacturer.example.id
 }

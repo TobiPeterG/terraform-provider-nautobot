@@ -4,6 +4,6 @@ resource "nautobot_available_ip_address" "example" {
   dns_name  = "test-vm.test.com"
 }
 
-output "allocated_ip" {
-  value = nautobot_available_ip_address.example.address
+output "resource_available_ip_address" {
+  value = nautobot_available_ip_address.example
 }

@@ -4,10 +4,6 @@ data "nautobot_virtual_machine" "example" {
   name = nautobot_virtual_machine.new.name
 }
 
-output "vm_details" {
+output "data_virtual_machine" {
   value = data.nautobot_virtual_machine.example
-}
-
-output "vm_id" {
-  value = data.nautobot_virtual_machine.example.id
 }

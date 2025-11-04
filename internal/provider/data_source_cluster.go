@@ -139,31 +139,45 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 	// Handle cluster_type_id
 	if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
 		d.Set("cluster_type_id", *cluster.ClusterType.Id.String)
+	} else {
+		d.Set("cluster_type_id", "")
 	}
 
 	// Handle cluster_group_id
 	if cluster.ClusterGroup.IsSet() {
-		if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil {
+		if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil && clusterGroup.Id.String != nil {
 			d.Set("cluster_group_id", *clusterGroup.Id.String)
+		} else {
+			d.Set("cluster_group_id", "")
 		}
+	} else {
+		d.Set("cluster_group_id", "")
 	}
 
 	// Handle tenant_id
 	if cluster.Tenant.IsSet() {
-		if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil {
+		if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 			d.Set("tenant_id", *tenant.Id.String)
+		} else {
+			d.Set("tenant_id", "")
 		}
+	} else {
+		d.Set("tenant_id", "")
 	}
 
 	// Handle location_id
 	if cluster.Location.IsSet() {
-		if location := cluster.Location.Get(); location != nil && location.Id != nil {
+		if location := cluster.Location.Get(); location != nil && location.Id != nil && location.Id.String != nil {
 			d.Set("location_id", *location.Id.String)
+		} else {
+			d.Set("location_id", "")
 		}
+	} else {
+		d.Set("location_id", "")
 	}
 
 	// Handle tags
-	var tags []string
+	tags := make([]string, 0, len(cluster.Tags))
 	for _, tag := range cluster.Tags {
 		if tag.Id != nil && tag.Id.String != nil {
 			tags = append(tags, *tag.Id.String)

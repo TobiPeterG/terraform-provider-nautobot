@@ -3,10 +3,6 @@ data "nautobot_cluster" "example" {
   name = nautobot_cluster.new.name
 }
 
-output "cluster_details" {
+output "data_cluster" {
   value = data.nautobot_cluster.example
-}
-
-output "cluster_id" {
-  value = data.nautobot_cluster.example.id
 }

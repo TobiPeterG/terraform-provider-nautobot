@@ -3,12 +3,8 @@ data "nautobot_prefix" "example" {
   vlan_id = data.nautobot_vlan.example.id
 }
 
-output "prefix_details" {
+output "data_prefix" {
   value = data.nautobot_prefix.example
-}
-
-output "prefix_id" {
-  value = data.nautobot_prefix.example.id
 }
 
 ###############################
@@ -18,6 +14,6 @@ data "nautobot_prefix" "example_parent" {
   id = data.nautobot_prefix.example.parent_id
 }
 
-output "prefix_parent_details" {
+output "data_prefix_parent" {
   value = data.nautobot_prefix.example_parent
 }
