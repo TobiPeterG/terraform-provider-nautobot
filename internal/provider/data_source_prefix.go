@@ -4,147 +4,267 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func dataSourcePrefix() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ datasource.DataSource              = &PrefixDataSource{}
+	_ datasource.DataSourceWithConfigure = &PrefixDataSource{}
+)
+
+type PrefixDataSource struct {
+	client *APIClient
+}
+
+type prefixDataSourceModel struct {
+	ID            types.String `tfsdk:"id"`
+	VLANID        types.String `tfsdk:"vlan_id"`
+	Prefix        types.String `tfsdk:"prefix"`
+	Description   types.String `tfsdk:"description"`
+	Status        types.String `tfsdk:"status"`
+	ParentID      types.String `tfsdk:"parent_id"`
+	RoleID        types.String `tfsdk:"role_id"`
+	TenantID      types.String `tfsdk:"tenant_id"`
+	RirID         types.String `tfsdk:"rir_id"`
+	NamespaceID   types.String `tfsdk:"namespace_id"`
+	Created       types.String `tfsdk:"created"`
+	LastUpdated   types.String `tfsdk:"last_updated"`
+	Network       types.String `tfsdk:"network"`
+	Broadcast     types.String `tfsdk:"broadcast"`
+	PrefixLength  types.Int64  `tfsdk:"prefix_length"`
+	IPVersion     types.Int64  `tfsdk:"ip_version"`
+	DateAllocated types.String `tfsdk:"date_allocated"`
+	TagsIDs       types.List   `tfsdk:"tags_ids"`
+	Display       types.String `tfsdk:"display"`
+	URL           types.String `tfsdk:"url"`
+	NaturalSlug   types.String `tfsdk:"natural_slug"`
+	NotesURL      types.String `tfsdk:"notes_url"`
+}
+
+func NewPrefixDataSource() datasource.DataSource {
+	return &PrefixDataSource{}
+}
+
+func (d *PrefixDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_prefix"
+}
+
+func (d *PrefixDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
 		Description: "Retrieves information about a Prefix in Nautobot by either its ID or associated VLAN ID.",
-
-		ReadContext: dataSourcePrefixRead,
-
-		Schema: map[string]*schema.Schema{
-			"id": {
-				Description:   "The UUID of the prefix.",
-				Type:          schema.TypeString,
-				Optional:      true,
-				ConflictsWith: []string{"vlan_id"},
-			},
-			"vlan_id": {
-				Description:   "The UUID of the VLAN to retrieve the prefix for.",
-				Type:          schema.TypeString,
-				Optional:      true,
-				ConflictsWith: []string{"id"},
-			},
-			"prefix": {
-				Description: "The prefix.",
-				Type:        schema.TypeString,
+		Attributes: map[string]dsschema.Attribute{
+			"id": dsschema.StringAttribute{
+				Description: "The UUID of the prefix. Exactly one of `id` or `vlan_id` must be provided.",
+				Optional:    true,
 				Computed:    true,
 			},
-			"description": {
+			"vlan_id": dsschema.StringAttribute{
+				Description: "The UUID of the VLAN to retrieve the prefix for. Exactly one of `id` or `vlan_id` must be provided.",
+				Optional:    true,
+				Computed:    true,
+			},
+
+			"prefix": dsschema.StringAttribute{
+				Description: "The prefix in CIDR notation.",
+				Computed:    true,
+			},
+			"description": dsschema.StringAttribute{
 				Description: "Description of the prefix.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"status": {
-				Description: "The status of the prefix.",
-				Type:        schema.TypeString,
+			"status": dsschema.StringAttribute{
+				Description: "The status of the prefix (name).",
 				Computed:    true,
 			},
-			"parent_id": {
+			"parent_id": dsschema.StringAttribute{
 				Description: "The ID of the parent of this prefix.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"role_id": {
+			"role_id": dsschema.StringAttribute{
 				Description: "The ID of the role associated with the prefix.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"tenant_id": {
+			"tenant_id": dsschema.StringAttribute{
 				Description: "The ID of the tenant associated with the prefix.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"rir_id": {
+			"rir_id": dsschema.StringAttribute{
 				Description: "The ID of the RIR associated with the prefix.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"namespace_id": {
+			"namespace_id": dsschema.StringAttribute{
 				Description: "The ID of the namespace associated with the prefix.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"created": {
-				Description: "The creation date of the prefix.",
-				Type:        schema.TypeString,
+			"created": dsschema.StringAttribute{
+				Description: "The creation date of the prefix (RFC3339).",
 				Computed:    true,
 			},
-			"last_updated": {
-				Description: "The last update date of the prefix.",
-				Type:        schema.TypeString,
+			"last_updated": dsschema.StringAttribute{
+				Description: "The last update date of the prefix (RFC3339).",
+				Computed:    true,
+			},
+			"network": dsschema.StringAttribute{
+				Description: "IPv4 or IPv6 network address.",
+				Computed:    true,
+			},
+			"broadcast": dsschema.StringAttribute{
+				Description: "IPv4 or IPv6 broadcast address.",
+				Computed:    true,
+			},
+			"prefix_length": dsschema.Int64Attribute{
+				Description: "Length of the network prefix, in bits.",
+				Computed:    true,
+			},
+			"ip_version": dsschema.Int64Attribute{
+				Description: "IP version of the prefix (4 or 6).",
+				Computed:    true,
+			},
+			"date_allocated": dsschema.StringAttribute{
+				Description: "Date this prefix was allocated/reserved (RFC3339).",
+				Computed:    true,
+			},
+			"tags_ids": dsschema.ListAttribute{
+				Description: "The IDs of the tags associated with the prefix.",
+				Computed:    true,
+				ElementType: types.StringType,
+			},
+			"display": dsschema.StringAttribute{
+				Description: "Human-friendly display value.",
+				Computed:    true,
+			},
+			"url": dsschema.StringAttribute{
+				Description: "API URL of the prefix.",
+				Computed:    true,
+			},
+			"natural_slug": dsschema.StringAttribute{
+				Description: "Natural slug for the prefix.",
+				Computed:    true,
+			},
+			"notes_url": dsschema.StringAttribute{
+				Description: "Notes URL for the prefix.",
 				Computed:    true,
 			},
 		},
 	}
 }
 
-func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *PrefixDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data prefixDataSourceModel
 
-	// Determine whether to use 'id' or 'vlan_id' for retrieval
-	id, idSet := d.GetOk("id")
-	vlanID, vlanIDSet := d.GetOk("vlan_id")
-
-	if !idSet && !vlanIDSet {
-		return diag.Errorf("either 'id' or 'vlan_id' must be provided")
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
+	}
+
+	c := d.client.Client
+	token := d.client.Token
+
+	idStr := data.ID.ValueString()
+	vlanIDStr := data.VLANID.ValueString()
+
+	idProvided := idStr != ""
+	vlanProvided := vlanIDStr != ""
+
+	if !idProvided && !vlanProvided {
+		resp.Diagnostics.AddError(
+			"Missing selector",
+			"Either `id` or `vlan_id` must be provided.",
+		)
+		return
+	}
+	if idProvided && vlanProvided {
+		resp.Diagnostics.AddError(
+			"Conflicting selectors",
+			"`id` and `vlan_id` cannot both be set. Provide exactly one.",
+		)
+		return
+	}
 
 	var prefix *nb.Prefix
 
-	if idSet {
+	if idProvided {
 		// Fetch prefix by ID
-		rsp, _, err := c.IpamAPI.IpamPrefixesRetrieve(auth, id.(string)).Execute()
+		rsp, httpResp, err := c.IpamAPI.
+			IpamPrefixesRetrieve(ctx, idStr).
+			Execute()
 		if err != nil {
-			return diag.Errorf("failed to get prefix with ID %s: %s", id.(string), err.Error())
+			resp.Diagnostics.AddError(
+				"Failed to get prefix by ID",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 		prefix = rsp
 	} else {
-		// Fetch prefix by VLAN ID
-		vlanIDStr := vlanID.(string)
-		vlanIDList := []*string{&vlanIDStr}
-
-		rsp, _, err := c.IpamAPI.IpamPrefixesList(auth).VlanId(vlanIDList).Execute()
+		rsp, httpResp, err := c.IpamAPI.
+			IpamPrefixesList(ctx).
+			VlanId([]*string{&vlanIDStr}).
+			Execute()
 		if err != nil {
-			return diag.Errorf("failed to get prefix for VLAN ID %s: %s", vlanIDStr, err.Error())
+			resp.Diagnostics.AddError(
+				"Failed to get prefix by VLAN ID",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
 		if len(rsp.Results) == 0 {
-			return diag.Errorf("no prefix found for VLAN ID %s", vlanIDStr)
+			resp.Diagnostics.AddError(
+				"Prefix not found",
+				"No prefix found for VLAN ID "+vlanIDStr,
+			)
+			return
 		}
-
 		prefix = &rsp.Results[0]
 	}
 
 	if prefix == nil {
-		return diag.Errorf("prefix not found")
+		resp.Diagnostics.AddError(
+			"Prefix not found",
+			"Prefix lookup returned no data.",
+		)
+		return
 	}
 
-	// Ensure the ID is present and set it as the Terraform resource ID
 	if prefix.Id == nil || *prefix.Id == "" {
-		return diag.Errorf("prefix returned no id")
+		resp.Diagnostics.AddError(
+			"Invalid prefix data",
+			"Prefix returned no id",
+		)
+		return
 	}
 	resID := *prefix.Id
-	d.SetId(resID)
+	data.ID = types.StringValue(resID)
 
-	// Times -> empty string if missing
+	data.Prefix = types.StringValue(prefix.Prefix)
+
+	desc := ""
+	if prefix.Description != nil {
+		desc = *prefix.Description
+	}
+	data.Description = types.StringValue(desc)
+
 	createdStr := ""
 	if prefix.Created.IsSet() && prefix.Created.Get() != nil {
 		createdStr = prefix.Created.Get().Format(time.RFC3339)
@@ -153,83 +273,94 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 	if prefix.LastUpdated.IsSet() && prefix.LastUpdated.Get() != nil {
 		lastUpdatedStr = prefix.LastUpdated.Get().Format(time.RFC3339)
 	}
+	data.Created = types.StringValue(createdStr)
+	data.LastUpdated = types.StringValue(lastUpdatedStr)
 
-	// Basic fields
-	d.Set("id", resID)
-	d.Set("prefix", prefix.Prefix)
-
-	// description -> empty string if missing
-	if prefix.Description != nil {
-		d.Set("description", *prefix.Description)
-	} else {
-		d.Set("description", "")
-	}
-
-	d.Set("created", createdStr)
-	d.Set("last_updated", lastUpdatedStr)
-
-	// status -> resolve to name; empty string when missing or unresolved
 	statusName := ""
 	if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
 		if statusID := *prefix.Status.Id.String; statusID != "" {
-			if name, err := getStatusName(ctx, c, t, statusID); err == nil {
+			if name, err := getStatusName(ctx, c, token, statusID); err == nil {
 				statusName = name
 			}
 		}
 	}
-	d.Set("status", statusName)
+	data.Status = types.StringValue(statusName)
 
-	// parent_id -> empty string when missing
 	parentID := ""
 	if prefix.Parent.IsSet() {
 		if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
 			parentID = *parent.Id.String
 		}
 	}
-	d.Set("parent_id", parentID)
+	data.ParentID = types.StringValue(parentID)
 
-	// tenant_id -> empty string when missing
 	tenantID := ""
 	if prefix.Tenant.IsSet() {
 		if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 			tenantID = *tenant.Id.String
 		}
 	}
-	d.Set("tenant_id", tenantID)
+	data.TenantID = types.StringValue(tenantID)
 
-	// role_id -> empty string when missing
 	roleID := ""
 	if prefix.Role.IsSet() {
 		if role := prefix.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
 			roleID = *role.Id.String
 		}
 	}
-	d.Set("role_id", roleID)
+	data.RoleID = types.StringValue(roleID)
 
-	// rir_id -> empty string when missing
 	rirID := ""
 	if prefix.Rir.IsSet() {
 		if rir := prefix.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
 			rirID = *rir.Id.String
 		}
 	}
-	d.Set("rir_id", rirID)
+	data.RirID = types.StringValue(rirID)
 
-	// namespace_id -> empty string when missing
 	namespaceID := ""
 	if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
 		namespaceID = *prefix.Namespace.Id.String
 	}
-	d.Set("namespace_id", namespaceID)
+	data.NamespaceID = types.StringValue(namespaceID)
 
-	// vlan_id -> empty string when missing
 	vlanIDOut := ""
 	if prefix.Vlan.IsSet() {
 		if v := prefix.Vlan.Get(); v != nil && v.Id != nil && v.Id.String != nil {
 			vlanIDOut = *v.Id.String
 		}
 	}
-	d.Set("vlan_id", vlanIDOut)
+	data.VLANID = types.StringValue(vlanIDOut)
 
-	return diags
+	data.Network = types.StringValue(prefix.Network)
+	data.Broadcast = types.StringValue(prefix.Broadcast)
+	data.PrefixLength = types.Int64Value(int64(prefix.PrefixLength))
+	data.IPVersion = types.Int64Value(int64(prefix.IpVersion))
+
+	dateAllocatedStr := ""
+	if prefix.DateAllocated.IsSet() && prefix.DateAllocated.Get() != nil {
+		dateAllocatedStr = prefix.DateAllocated.Get().Format(time.RFC3339)
+	}
+	data.DateAllocated = types.StringValue(dateAllocatedStr)
+
+	if len(prefix.Tags) > 0 {
+		tagVals := make([]attr.Value, 0, len(prefix.Tags))
+		for _, tag := range prefix.Tags {
+			if tag.Id != nil && tag.Id.String != nil {
+				tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+			}
+		}
+		data.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+	} else {
+		data.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+	}
+
+	data.Display = types.StringValue(prefix.Display)
+	data.URL = types.StringValue(prefix.Url)
+	data.NaturalSlug = types.StringValue(prefix.NaturalSlug)
+	data.NotesURL = types.StringValue(prefix.NotesUrl)
+
+	tflog.Debug(ctx, "read Prefix", map[string]any{"id": resID, "vlan_id": vlanIDOut})
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

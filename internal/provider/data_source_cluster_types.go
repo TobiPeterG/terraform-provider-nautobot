@@ -2,74 +2,90 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func dataSourceClusterTypes() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ datasource.DataSource              = &ClusterTypesDataSource{}
+	_ datasource.DataSourceWithConfigure = &ClusterTypesDataSource{}
+)
+
+type ClusterTypesDataSource struct {
+	client *APIClient
+}
+
+type clusterTypeItemModel struct {
+	ID          types.String `tfsdk:"id"`
+	Display     types.String `tfsdk:"display"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Created     types.String `tfsdk:"created"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	NotesURL    types.String `tfsdk:"notes_url"`
+}
+
+type clusterTypesDataSourceModel struct {
+	ClusterTypes []clusterTypeItemModel `tfsdk:"cluster_types"`
+}
+
+func NewClusterTypesDataSource() datasource.DataSource {
+	return &ClusterTypesDataSource{}
+}
+
+func (d *ClusterTypesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cluster_types"
+}
+
+func (d *ClusterTypesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
 		Description: "Retrieves information about cluster types in Nautobot.",
-
-		ReadContext: dataSourceClusterTypesRead,
-
-		Schema: map[string]*schema.Schema{
-			"cluster_types": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
+		Attributes: map[string]dsschema.Attribute{
+			"cluster_types": dsschema.ListNestedAttribute{
+				Description: "List of cluster types.",
+				Computed:    true,
+				NestedObject: dsschema.NestedAttributeObject{
+					Attributes: map[string]dsschema.Attribute{
+						"id": dsschema.StringAttribute{
 							Description: "The UUID of the cluster type.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"object_type": {
-							Description: "Object type of the cluster type.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"display": {
+						"display": dsschema.StringAttribute{
 							Description: "Human-friendly display value for the cluster type.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"url": {
+						"url": dsschema.StringAttribute{
 							Description: "URL of the cluster type.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"natural_slug": {
+						"natural_slug": dsschema.StringAttribute{
 							Description: "Natural slug for the cluster type.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"name": {
+						"name": dsschema.StringAttribute{
 							Description: "The name of the cluster type.",
-							Type:        schema.TypeString,
-							Required:    true,
+							Computed:    true,
 						},
-						"description": {
+						"description": dsschema.StringAttribute{
 							Description: "The description of the cluster type.",
-							Type:        schema.TypeString,
-							Optional:    true,
-						},
-						"created": {
-							Description: "The date the cluster type was created.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"last_updated": {
-							Description: "The date the cluster type was last updated.",
-							Type:        schema.TypeString,
+						"created": dsschema.StringAttribute{
+							Description: "The date the cluster type was created (RFC3339).",
 							Computed:    true,
 						},
-						"notes_url": {
+						"last_updated": dsschema.StringAttribute{
+							Description: "The date the cluster type was last updated (RFC3339).",
+							Computed:    true,
+						},
+						"notes_url": dsschema.StringAttribute{
 							Description: "Notes URL for the cluster type.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
 					},
@@ -79,76 +95,76 @@ func dataSourceClusterTypes() *schema.Resource {
 	}
 }
 
-func dataSourceClusterTypesRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *ClusterTypesDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
-	t := meta.(*apiClient).Token.token
+func (d *ClusterTypesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state clusterTypesDataSourceModel
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
+	}
 
-	rsp, _, err := c.VirtualizationAPI.VirtualizationClusterTypesList(auth).Execute()
+	c := d.client.Client
+
+	rsp, httpResp, err := c.VirtualizationAPI.
+		VirtualizationClusterTypesList(ctx).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to get cluster types list from %s: %s", s, err.Error())
+		resp.Diagnostics.AddError(
+			"Failed to get cluster types list",
+			httpErr(err, httpResp),
+		)
+		return
 	}
 
 	results := rsp.Results
-	list := make([]map[string]interface{}, 0)
+	state.ClusterTypes = make([]clusterTypeItemModel, 0, len(results))
 
-	// Iterate over the results and map each cluster type to the format expected by Terraform
-	for _, clusterType := range results {
-		createdStr := ""
-		if clusterType.Created.IsSet() && clusterType.Created.Get() != nil {
-			createdStr = clusterType.Created.Get().Format(time.RFC3339)
-		}
-
-		lastUpdatedStr := ""
-		if clusterType.LastUpdated.IsSet() && clusterType.LastUpdated.Get() != nil {
-			lastUpdatedStr = clusterType.LastUpdated.Get().Format(time.RFC3339)
-		}
+	for _, ct := range results {
+		var item clusterTypeItemModel
 
 		idStr := ""
-		if clusterType.Id != nil {
-			idStr = *clusterType.Id
+		if ct.Id != nil {
+			idStr = *ct.Id
+		}
+		item.ID = types.StringValue(idStr)
+
+		createdStr := ""
+		if ct.Created.IsSet() && ct.Created.Get() != nil {
+			createdStr = ct.Created.Get().Format(time.RFC3339)
+		}
+		lastUpdatedStr := ""
+		if ct.LastUpdated.IsSet() && ct.LastUpdated.Get() != nil {
+			lastUpdatedStr = ct.LastUpdated.Get().Format(time.RFC3339)
 		}
 
 		descStr := ""
-		if clusterType.Description != nil {
-			descStr = *clusterType.Description
+		if ct.Description != nil {
+			descStr = *ct.Description
 		}
 
-		itemMap := map[string]interface{}{
-			"id":           idStr,
-			"object_type":  clusterType.ObjectType,
-			"display":      clusterType.Display,
-			"url":          clusterType.Url,
-			"natural_slug": clusterType.NaturalSlug,
-			"name":         clusterType.Name,
-			"description":  descStr,
-			"created":      createdStr,
-			"last_updated": lastUpdatedStr,
-			"notes_url":    clusterType.NotesUrl,
-		}
-		list = append(list, itemMap)
+		item.Display = types.StringValue(ct.Display)
+		item.URL = types.StringValue(ct.Url)
+		item.NaturalSlug = types.StringValue(ct.NaturalSlug)
+		item.Name = types.StringValue(ct.Name)
+		item.Description = types.StringValue(descStr)
+		item.Created = types.StringValue(createdStr)
+		item.LastUpdated = types.StringValue(lastUpdatedStr)
+		item.NotesURL = types.StringValue(ct.NotesUrl)
+
+		state.ClusterTypes = append(state.ClusterTypes, item)
 	}
 
-	if err := d.Set("cluster_types", list); err != nil {
-		return diag.FromErr(err)
-	}
+	tflog.Debug(ctx, "read cluster types", map[string]any{"count": len(state.ClusterTypes)})
 
-	// Always run
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-
-	return diags
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

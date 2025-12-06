@@ -2,715 +2,605 @@ package provider
 
 import (
 	"context"
-	"io"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func resourceVirtualMachine() *schema.Resource {
-	return &schema.Resource{
+var _ resource.Resource = &VirtualMachineResource{}
+var _ resource.ResourceWithImportState = &VirtualMachineResource{}
+
+type VirtualMachineResource struct {
+	client *APIClient
+}
+
+type vmModel struct {
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	ClusterID         types.String `tfsdk:"cluster_id"`
+	Status            types.String `tfsdk:"status"`
+	Vcpus             types.Int64  `tfsdk:"vcpus"`
+	Memory            types.Int64  `tfsdk:"memory"`
+	Disk              types.Int64  `tfsdk:"disk"`
+	Comments          types.String `tfsdk:"comments"`
+	TenantID          types.String `tfsdk:"tenant_id"`
+	PlatformID        types.String `tfsdk:"platform_id"`
+	RoleID            types.String `tfsdk:"role_id"`
+	SoftwareVersionID types.String `tfsdk:"software_version_id"`
+	TagsIDs           types.List   `tfsdk:"tags_ids"`
+	Created           types.String `tfsdk:"created"`
+}
+
+func NewVirtualMachineResource() resource.Resource {
+	return &VirtualMachineResource{}
+}
+
+func (r *VirtualMachineResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_virtual_machine"
+}
+
+func (r *VirtualMachineResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = rschema.Schema{
 		Description: "This object manages a virtual machine in Nautobot",
+		Attributes: map[string]rschema.Attribute{
+			"id": rschema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "Virtual Machine UUID.",
+			},
 
-		CreateContext: resourceVirtualMachineCreate,
-		ReadContext:   resourceVirtualMachineRead,
-		UpdateContext: resourceVirtualMachineUpdate,
-		DeleteContext: resourceVirtualMachineDelete,
-
-		Schema: map[string]*schema.Schema{
-			"name": {
+			"name": rschema.StringAttribute{
+				Required:    true,
 				Description: "Virtual Machine's name.",
-				Type:        schema.TypeString,
-				Required:    true,
 			},
-			"cluster_id": {
+			"cluster_id": rschema.StringAttribute{
+				Required:    true,
 				Description: "Cluster where the virtual machine belongs.",
-				Type:        schema.TypeString,
-				Required:    true,
 			},
-			"status": {
-				Description: "Status of the virtual machine.",
-				Type:        schema.TypeString,
+			"status": rschema.StringAttribute{
 				Required:    true,
+				Description: "Status of the virtual machine (name).",
 			},
-			"vcpus": {
+
+			"vcpus": rschema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
 				Description: "Number of virtual CPUs.",
-				Type:        schema.TypeInt,
-				Optional:    true,
+				Default:     int64default.StaticInt64(0),
 			},
-			"memory": {
+			"memory": rschema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
 				Description: "Amount of memory in MB.",
-				Type:        schema.TypeInt,
-				Optional:    true,
+				Default:     int64default.StaticInt64(0),
 			},
-			"disk": {
+			"disk": rschema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
 				Description: "Disk size in GB.",
-				Type:        schema.TypeInt,
-				Optional:    true,
+				Default:     int64default.StaticInt64(0),
 			},
-			"comments": {
+			"comments": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "Comments or notes about the virtual machine.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"tenant_id": {
+			"tenant_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "Tenant associated with the virtual machine.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"platform_id": {
+			"platform_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "Platform or OS installed on the virtual machine.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"role_id": {
+			"role_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "Role of the virtual machine.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"primary_ip4_id": {
-				Description: "Primary IPv4 address.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-			},
-			"primary_ip6_id": {
-				Description: "Primary IPv6 address.",
-				Type:        schema.TypeString,
+
+			"software_version_id": rschema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-			},
-			"software_version_id": {
+				Default:     stringdefault.StaticString(""),
 				Description: "Software version installed on the virtual machine.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-			},
-			"software_image_files": {
-				Description: "Software image files associated with the software version.",
-				Type:        schema.TypeList,
-				Optional:    true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-					},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"tags_ids": {
+
+			"tags_ids": rschema.ListAttribute{
+				Optional:    true,
+				Computed:    true,
 				Description: "Tags associated with the virtual machine.",
-				Type:        schema.TypeList,
-				Optional:    true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
+				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"created": {
-				Description: "Creation date of the virtual machine.",
-				Type:        schema.TypeString,
+
+			"created": rschema.StringAttribute{
 				Computed:    true,
-			},
-			"last_updated": {
-				Description: "Last update date of the virtual machine.",
-				Type:        schema.TypeString,
-				Computed:    true,
+				Description: "Creation timestamp (RFC3339).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
 }
 
-func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (r *VirtualMachineResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	r.client = req.ProviderData.(*APIClient)
+}
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+func (r *VirtualMachineResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan vmModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// Check if the VM with the same name exists
-	vmName := d.Get("name").(string)
-	vmCluster := d.Get("cluster_id").(string)
-	existingVMs, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesList(auth).Name([]string{vmName}).Cluster([]string{vmCluster}).Execute()
+	c := r.client.Client
+
+	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
 	if err != nil {
-		return diag.Errorf("failed to list virtual machines: %s", err.Error())
+		resp.Diagnostics.AddError("failed to get status id", err.Error())
+		return
 	}
 
-	// If a VM with the same name in this cluster exists, use its ID and skip creation
-	if len(existingVMs.Results) > 0 {
-		if existingVMs.Results[0].Id == nil || *existingVMs.Results[0].Id == "" {
-			return diag.Errorf("existing virtual machine %q returned no id", vmName)
-		}
-		d.SetId(*existingVMs.Results[0].Id)
-		return resourceVirtualMachineRead(ctx, d, meta)
-	}
-
-	// Convert status name to ID
-	statusName := d.Get("status").(string)
-	statusID, err := getStatusID(ctx, c, t, statusName)
-	if err != nil {
-		return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
-	}
-
-	// Prepare the VirtualMachineRequest
 	var vm nb.VirtualMachineRequest
-	vm.Name = d.Get("name").(string)
-	vm.Cluster = nb.BulkWritableCableRequestStatus{
-		Id: &nb.BulkWritableCableRequestStatusId{
-			String: stringPtr(d.Get("cluster_id").(string)),
+	vm.Name = plan.Name.ValueString()
+
+	vm.Cluster = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+			String: stringPtr(plan.ClusterID.ValueString()),
 		},
 	}
-	vm.Status = nb.BulkWritableCableRequestStatus{
-		Id: &nb.BulkWritableCableRequestStatusId{
+
+	vm.Status = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(statusID),
 		},
 	}
 
-	// Optional fields
-	if v, ok := d.GetOk("vcpus"); ok {
-		vm.Vcpus.Set(int32Ptr(v.(int)))
+	if !plan.Vcpus.IsNull() {
+		vm.Vcpus.Set(int32Ptr(int(plan.Vcpus.ValueInt64())))
 	}
-	if v, ok := d.GetOk("memory"); ok {
-		vm.Memory.Set(int32Ptr(v.(int)))
+	if !plan.Memory.IsNull() {
+		vm.Memory.Set(int32Ptr(int(plan.Memory.ValueInt64())))
 	}
-	if v, ok := d.GetOk("disk"); ok {
-		vm.Disk.Set(int32Ptr(v.(int)))
-	}
-	if v, ok := d.GetOk("comments"); ok {
-		comments := v.(string)
-		vm.Comments = &comments
-	}
-	if v, ok := d.GetOk("tenant_id"); ok {
-		tenant := v.(string)
-		if tenant != "" {
-			var nullableTenant nb.NullableBulkWritableCircuitRequestTenant
-			nullableTenant.Set(&nb.BulkWritableCircuitRequestTenant{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(tenant),
-				},
-			})
-			vm.Tenant = nullableTenant
-		}
-	}
-	if v, ok := d.GetOk("platform_id"); ok {
-		platform := v.(string)
-		if platform != "" {
-			var nullablePlatform nb.NullableBulkWritableCircuitRequestTenant
-			nullablePlatform.Set(&nb.BulkWritableCircuitRequestTenant{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(platform),
-				},
-			})
-			vm.Platform = nullablePlatform
-		}
+	if !plan.Disk.IsNull() {
+		vm.Disk.Set(int32Ptr(int(plan.Disk.ValueInt64())))
 	}
 
-	if v, ok := d.GetOk("role_id"); ok {
-		role := v.(string)
-		if role != "" {
-			var nullableRole nb.NullableBulkWritableCircuitRequestTenant
-			nullableRole.Set(&nb.BulkWritableCircuitRequestTenant{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(role),
-				},
-			})
-			vm.Role = nullableRole
-		}
+	if !plan.Comments.IsNull() {
+		cm := plan.Comments.ValueString()
+		vm.Comments = &cm
 	}
 
-	if v, ok := d.GetOk("primary_ip4_id"); ok {
-		ip4 := v.(string)
-		if ip4 != "" {
-			var nullableIP4 nb.NullablePrimaryIPv4
-			primaryIPv4 := &nb.PrimaryIPv4{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(ip4),
-				},
+	if plan.TenantID.ValueString() != "" {
+		tVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.TenantID.ValueString()),
+			},
+		}
+		var nt nb.NullableApprovalWorkflowUser
+		nt.Set(&tVal)
+		vm.Tenant = nt
+	}
+
+	if plan.PlatformID.ValueString() != "" {
+		pVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.PlatformID.ValueString()),
+			},
+		}
+		var np nb.NullableApprovalWorkflowUser
+		np.Set(&pVal)
+		vm.Platform = np
+	}
+
+	if plan.RoleID.ValueString() != "" {
+		rVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.RoleID.ValueString()),
+			},
+		}
+		var nr nb.NullableApprovalWorkflowUser
+		nr.Set(&rVal)
+		vm.Role = nr
+	}
+
+	if plan.SoftwareVersionID.ValueString() != "" {
+		var sv nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+		sv.Set(&nb.BulkWritableVirtualMachineRequestSoftwareVersion{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.SoftwareVersionID.ValueString()),
+			},
+		})
+		vm.SoftwareVersion = sv
+	}
+
+	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if !resp.Diagnostics.HasError() && len(tagIDs) > 0 {
+			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			for _, t := range tagIDs {
+				if t == "" {
+					continue
+				}
+				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+						String: stringPtr(t),
+					},
+				})
 			}
-			nullableIP4.Set(primaryIPv4)
-			vm.PrimaryIp4 = nullableIP4
+			vm.Tags = tags
 		}
 	}
 
-	if v, ok := d.GetOk("primary_ip6_id"); ok {
-		ip6 := v.(string)
-		if ip6 != "" {
-			var nullableIP6 nb.NullablePrimaryIPv6
-			primaryIPv6 := &nb.PrimaryIPv6{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(ip6),
-				},
-			}
-			nullableIP6.Set(primaryIPv6)
-			vm.PrimaryIp6 = nullableIP6
-		}
-	}
-
-	if v, ok := d.GetOk("software_version_id"); ok {
-		softwareVersion := v.(string)
-		if softwareVersion != "" {
-			var nullableSoftwareVersion nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
-			softwareVersionStruct := &nb.BulkWritableVirtualMachineRequestSoftwareVersion{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(softwareVersion),
-				},
-			}
-			nullableSoftwareVersion.Set(softwareVersionStruct)
-			vm.SoftwareVersion = nullableSoftwareVersion
-		}
-	}
-
-	if v, ok := d.GetOk("software_image_files"); ok {
-		var files []nb.SoftwareImageFiles
-		for _, file := range v.([]interface{}) {
-			fileData := file.(map[string]interface{})
-			files = append(files, nb.SoftwareImageFiles{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(fileData["id"].(string)),
-				},
-			})
-		}
-		vm.SoftwareImageFiles = files
-	}
-	if v, ok := d.GetOk("tags_ids"); ok {
-		var tags []nb.BulkWritableCableRequestStatus
-		for _, tag := range v.([]interface{}) {
-			tagStr := tag.(string)
-			if tagStr == "" {
-				continue
-			}
-			tags = append(tags, nb.BulkWritableCableRequestStatus{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(tagStr),
-				},
-			})
-		}
-		vm.Tags = tags
-	}
-
-	// Create the virtual machine
-	rsp, httpResp, err := c.VirtualizationAPI.VirtualizationVirtualMachinesCreate(auth).VirtualMachineRequest(vm).Execute()
+	out, httpResp, err := c.VirtualizationAPI.
+		VirtualizationVirtualMachinesCreate(ctx).
+		VirtualMachineRequest(vm).
+		Execute()
 	if err != nil {
-		var extraInfo string
-
-		if httpResp != nil && httpResp.Body != nil {
-			bodyBytes, readErr := io.ReadAll(httpResp.Body)
-			if readErr == nil {
-				extraInfo = string(bodyBytes)
-			} else {
-				extraInfo = "unable to read response body"
-			}
-		}
-
-		return diag.Errorf("failed to create virtual machine: %s\nDetails: %s", err.Error(), extraInfo)
+		resp.Diagnostics.AddError("failed to create virtual machine", httpErr(err, httpResp))
+		return
+	}
+	if out.Id == nil || *out.Id == "" {
+		resp.Diagnostics.AddError("invalid API response", "created virtual machine returned no id")
+		return
 	}
 
-	// Set resource ID
-	if rsp.Id == nil || *rsp.Id == "" {
-		return diag.Errorf("created virtual machine returned no id")
+	model, diags := r.buildStateModel(ctx, *out.Id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	d.SetId(*rsp.Id)
-
-	return resourceVirtualMachineRead(ctx, d, meta)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Fetch virtual machine by ID
-	vmId := d.Id()
-	vm, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesRetrieve(auth, vmId).Execute()
-	if err != nil {
-		return diag.Errorf("failed to read virtual machine: %s", err.Error())
+func (r *VirtualMachineResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state vmModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Map the retrieved data back to Terraform state
-	d.Set("name", vm.Name)
-
-	// cluster_id -> default ""
-	clusterID := ""
-	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
-		clusterID = *vm.Cluster.Id.String
+	model, diags := r.buildStateModel(ctx, state.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	d.Set("cluster_id", clusterID)
-
-	// status -> name -> default ""
-	statusName := ""
-	if vm.Status.Id != nil && vm.Status.Id.String != nil {
-		statusID := *vm.Status.Id.String
-		if statusID != "" {
-			if n, err := getStatusName(ctx, c, t, statusID); err == nil {
-				statusName = n
-			}
-		}
-	}
-	d.Set("status", statusName)
-
-	// vcpus, memory, disk (nullable ints)
-	if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
-		d.Set("vcpus", int(*vm.Vcpus.Get()))
-	} else {
-		d.Set("vcpus", 0)
-	}
-	if vm.Memory.IsSet() && vm.Memory.Get() != nil {
-		d.Set("memory", int(*vm.Memory.Get()))
-	} else {
-		d.Set("memory", 0)
-	}
-	if vm.Disk.IsSet() && vm.Disk.Get() != nil {
-		d.Set("disk", int(*vm.Disk.Get()))
-	} else {
-		d.Set("disk", 0)
-	}
-
-	// comments
-	if vm.Comments != nil {
-		d.Set("comments", *vm.Comments)
-	} else {
-		d.Set("comments", "")
-	}
-
-	// tenant_id -> default ""
-	tenantID := ""
-	if vm.Tenant.IsSet() {
-		tenant := vm.Tenant.Get()
-		if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			tenantID = *tenant.Id.String
-		}
-	}
-	d.Set("tenant_id", tenantID)
-
-	// platform_id -> default ""
-	platformID := ""
-	if vm.Platform.IsSet() {
-		platform := vm.Platform.Get()
-		if platform != nil && platform.Id != nil && platform.Id.String != nil {
-			platformID = *platform.Id.String
-		}
-	}
-	d.Set("platform_id", platformID)
-
-	// role_id -> default ""
-	roleID := ""
-	if vm.Role.IsSet() {
-		role := vm.Role.Get()
-		if role != nil && role.Id != nil && role.Id.String != nil {
-			roleID = *role.Id.String
-		}
-	}
-	d.Set("role_id", roleID)
-
-	// primary_ip4_id -> default ""
-	primaryIPv4ID := ""
-	if vm.PrimaryIp4.IsSet() {
-		primaryIp4 := vm.PrimaryIp4.Get()
-		if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
-			primaryIPv4ID = *primaryIp4.Id.String
-		}
-	}
-	d.Set("primary_ip4_id", primaryIPv4ID)
-
-	// primary_ip6_id -> default ""
-	primaryIPv6ID := ""
-	if vm.PrimaryIp6.IsSet() {
-		primaryIp6 := vm.PrimaryIp6.Get()
-		if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
-			primaryIPv6ID = *primaryIp6.Id.String
-		}
-	}
-	d.Set("primary_ip6_id", primaryIPv6ID)
-
-	// software_version_id -> default ""
-	swVersionID := ""
-	if vm.SoftwareVersion.IsSet() {
-		softwareVersion := vm.SoftwareVersion.Get()
-		if softwareVersion != nil && softwareVersion.Id != nil && softwareVersion.Id.String != nil {
-			swVersionID = *softwareVersion.Id.String
-		}
-	}
-	d.Set("software_version_id", swVersionID)
-
-	// software_image_files -> always set (empty list when none)
-	var imageFiles []map[string]string
-	for _, file := range vm.SoftwareImageFiles {
-		if file.Id != nil && file.Id.String != nil {
-			imageFiles = append(imageFiles, map[string]string{
-				"id": *file.Id.String,
-			})
-		}
-	}
-	d.Set("software_image_files", imageFiles)
-
-	// tags_ids -> always set (empty list when none)
-	tags := make([]string, 0, len(vm.Tags))
-	for _, tag := range vm.Tags {
-		if tag.Id != nil && tag.Id.String != nil {
-			tags = append(tags, *tag.Id.String)
-		}
-	}
-	d.Set("tags_ids", tags)
-
-	// created / last_updated as RFC3339
-	createdStr := ""
-	if vm.Created.IsSet() && vm.Created.Get() != nil {
-		createdStr = vm.Created.Get().Format(time.RFC3339)
-	}
-	d.Set("created", createdStr)
-
-	lastUpdatedStr := ""
-	if vm.LastUpdated.IsSet() && vm.LastUpdated.Get() != nil {
-		lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
-	}
-	d.Set("last_updated", lastUpdatedStr)
-
-	return nil
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func resourceVirtualMachineUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	vmId := d.Id()
-
-	var vm nb.PatchedVirtualMachineRequest
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Update the fields that have changed
-	if d.HasChange("name") {
-		name := d.Get("name").(string)
-		vm.Name = &name
+func (r *VirtualMachineResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan vmModel
+	var state vmModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	if d.HasChange("cluster_id") {
-		clusterID := d.Get("cluster_id").(string)
-		vm.Cluster = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &clusterID,
+	vmId := state.ID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedVirtualMachineRequest
+
+	if !plan.Name.Equal(state.Name) {
+		v := plan.Name.ValueString()
+		patch.Name = &v
+	}
+
+	if !plan.ClusterID.Equal(state.ClusterID) {
+		v := plan.ClusterID.ValueString()
+		patch.Cluster = &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: &v,
 			},
 		}
 	}
 
-	if d.HasChange("status") {
-		statusName := d.Get("status").(string)
-		statusID, err := getStatusID(ctx, c, t, statusName)
+	if !plan.Status.Equal(state.Status) {
+		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
 		if err != nil {
-			return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
+			resp.Diagnostics.AddError("failed to get status id", err.Error())
+			return
 		}
-		vm.Status = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
+		patch.Status = &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 				String: stringPtr(statusID),
 			},
 		}
 	}
 
-	// Optional fields
-	if d.HasChange("vcpus") {
-		vm.Vcpus.Set(int32Ptr(d.Get("vcpus").(int)))
+	if !plan.Vcpus.Equal(state.Vcpus) {
+		patch.Vcpus.Set(int32Ptr(int(plan.Vcpus.ValueInt64())))
 	}
-	if d.HasChange("memory") {
-		vm.Memory.Set(int32Ptr(d.Get("memory").(int)))
+	if !plan.Memory.Equal(state.Memory) {
+		patch.Memory.Set(int32Ptr(int(plan.Memory.ValueInt64())))
 	}
-	if d.HasChange("disk") {
-		vm.Disk.Set(int32Ptr(d.Get("disk").(int)))
-	}
-	if d.HasChange("comments") {
-		comments := d.Get("comments").(string)
-		vm.Comments = &comments
-	}
-	if d.HasChange("tenant_id") {
-		tenant := d.Get("tenant_id").(string)
-		if tenant == "" {
-			vm.Tenant.Unset()
-		} else {
-			var nullableTenant nb.NullableBulkWritableCircuitRequestTenant
-			nullableTenant.Set(&nb.BulkWritableCircuitRequestTenant{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(tenant),
-				},
-			})
-			vm.Tenant = nullableTenant
-		}
-	}
-	if d.HasChange("platform_id") {
-		platform := d.Get("platform_id").(string)
-		if platform == "" {
-			vm.Platform.Unset()
-		} else {
-			var nullablePlatform nb.NullableBulkWritableCircuitRequestTenant
-			nullablePlatform.Set(&nb.BulkWritableCircuitRequestTenant{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(platform),
-				},
-			})
-			vm.Platform = nullablePlatform
-		}
+	if !plan.Disk.Equal(state.Disk) {
+		patch.Disk.Set(int32Ptr(int(plan.Disk.ValueInt64())))
 	}
 
-	if d.HasChange("role_id") {
-		role := d.Get("role_id").(string)
-		if role == "" {
-			vm.Role.Unset()
-		} else {
-			var nullableRole nb.NullableBulkWritableCircuitRequestTenant
-			nullableRole.Set(&nb.BulkWritableCircuitRequestTenant{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(role),
-				},
-			})
-			vm.Role = nullableRole
-		}
+	if !plan.Comments.Equal(state.Comments) {
+		v := plan.Comments.ValueString()
+		patch.Comments = &v
 	}
 
-	if d.HasChange("primary_ip4_id") {
-		ip4 := d.Get("primary_ip4_id").(string)
-		if ip4 == "" {
-			vm.PrimaryIp4.Unset()
+	if !plan.TenantID.Equal(state.TenantID) {
+		if plan.TenantID.ValueString() == "" {
+			patch.Tenant.Set(nil)
 		} else {
-			var nullableIP4 nb.NullablePrimaryIPv4
-			primaryIPv4 := &nb.PrimaryIPv4{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(ip4),
+			tVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.TenantID.ValueString()),
 				},
 			}
-			nullableIP4.Set(primaryIPv4)
-			vm.PrimaryIp4 = nullableIP4
+			var n nb.NullableApprovalWorkflowUser
+			n.Set(&tVal)
+			patch.Tenant = n
 		}
 	}
 
-	if d.HasChange("primary_ip6_id") {
-		ip6 := d.Get("primary_ip6_id").(string)
-		if ip6 == "" {
-			vm.PrimaryIp6.Unset()
+	if !plan.PlatformID.Equal(state.PlatformID) {
+		if plan.PlatformID.ValueString() == "" {
+			patch.Platform.Set(nil)
 		} else {
-			var nullableIP6 nb.NullablePrimaryIPv6
-			primaryIPv6 := &nb.PrimaryIPv6{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(ip6),
+			pVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.PlatformID.ValueString()),
 				},
 			}
-			nullableIP6.Set(primaryIPv6)
-			vm.PrimaryIp6 = nullableIP6
+			var n nb.NullableApprovalWorkflowUser
+			n.Set(&pVal)
+			patch.Platform = n
 		}
 	}
 
-	if d.HasChange("software_version_id") {
-		softwareVersion := d.Get("software_version_id").(string)
-		if softwareVersion == "" {
-			vm.SoftwareVersion.Unset()
+	if !plan.RoleID.Equal(state.RoleID) {
+		if plan.RoleID.ValueString() == "" {
+			patch.Role.Set(nil)
 		} else {
-			var nullableSoftwareVersion nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
-			softwareVersionStruct := &nb.BulkWritableVirtualMachineRequestSoftwareVersion{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(softwareVersion),
+			rVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.RoleID.ValueString()),
 				},
 			}
-			nullableSoftwareVersion.Set(softwareVersionStruct)
-			vm.SoftwareVersion = nullableSoftwareVersion
+			var n nb.NullableApprovalWorkflowUser
+			n.Set(&rVal)
+			patch.Role = n
 		}
 	}
 
-	if d.HasChange("software_image_files") {
-		var files []nb.SoftwareImageFiles
-		for _, file := range d.Get("software_image_files").([]interface{}) {
-			fileData := file.(map[string]interface{})
-			files = append(files, nb.SoftwareImageFiles{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(fileData["id"].(string)),
+	if !plan.SoftwareVersionID.Equal(state.SoftwareVersionID) {
+		if plan.SoftwareVersionID.ValueString() == "" {
+			patch.SoftwareVersion.Set(nil)
+		} else {
+			var sv nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+			sv.Set(&nb.BulkWritableVirtualMachineRequestSoftwareVersion{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.SoftwareVersionID.ValueString()),
 				},
 			})
+			patch.SoftwareVersion = sv
 		}
-		vm.SoftwareImageFiles = files
 	}
 
-	if d.HasChange("tags_ids") {
-		var tags []nb.BulkWritableCableRequestStatus
-		for _, tag := range d.Get("tags_ids").([]interface{}) {
-			tagID := tag.(string)
-			if tagID == "" {
+	if !plan.TagsIDs.Equal(state.TagsIDs) {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		for _, t := range tagIDs {
+			if t == "" {
 				continue
 			}
-			tags = append(tags, nb.BulkWritableCableRequestStatus{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: &tagID,
+			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(t),
 				},
 			})
 		}
-		vm.Tags = tags
+		patch.Tags = tags
 	}
 
-	// Call the API to update the virtual machine
-	_, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesPartialUpdate(auth, vmId).PatchedVirtualMachineRequest(vm).Execute()
+	_, httpResp, err := c.VirtualizationAPI.
+		VirtualizationVirtualMachinesPartialUpdate(ctx, vmId).
+		PatchedVirtualMachineRequest(patch).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to update virtual machine: %s", err.Error())
+		resp.Diagnostics.AddError("failed to update virtual machine", httpErr(err, httpResp))
+		return
 	}
 
-	return resourceVirtualMachineRead(ctx, d, meta)
+	model, diags := r.buildStateModel(ctx, vmId)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func resourceVirtualMachineDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Delete the virtual machine by ID
-	vmId := d.Id()
-	_, err := c.VirtualizationAPI.VirtualizationVirtualMachinesDestroy(auth, vmId).Execute()
-	if err != nil {
-		return diag.Errorf("failed to delete virtual machine: %s", err.Error())
+func (r *VirtualMachineResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state vmModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Clear the ID
-	d.SetId("")
+	httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationVirtualMachinesDestroy(ctx, state.ID.ValueString()).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to delete virtual machine", httpErr(err, httpResp))
+		return
+	}
+}
 
-	return nil
+func (r *VirtualMachineResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string) (vmModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	vm, httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationVirtualMachinesRetrieve(ctx, id).
+		Execute()
+	if err != nil {
+		diags.AddError("failed to read virtual machine", httpErr(err, httpResp))
+		return vmModel{}, diags
+	}
+
+	var m vmModel
+	m.ID = types.StringValue(id)
+	m.Name = types.StringValue(vm.Name)
+
+	clusterID := ""
+	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
+		clusterID = *vm.Cluster.Id.String
+	}
+	m.ClusterID = types.StringValue(clusterID)
+
+	statusName := ""
+	if vm.Status.Id != nil && vm.Status.Id.String != nil {
+		if *vm.Status.Id.String != "" {
+			if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *vm.Status.Id.String); err == nil {
+				statusName = n
+			}
+		}
+	}
+	m.Status = types.StringValue(statusName)
+
+	if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
+		m.Vcpus = types.Int64Value(int64(*vm.Vcpus.Get()))
+	} else {
+		m.Vcpus = types.Int64Value(0)
+	}
+	if vm.Memory.IsSet() && vm.Memory.Get() != nil {
+		m.Memory = types.Int64Value(int64(*vm.Memory.Get()))
+	} else {
+		m.Memory = types.Int64Value(0)
+	}
+	if vm.Disk.IsSet() && vm.Disk.Get() != nil {
+		m.Disk = types.Int64Value(int64(*vm.Disk.Get()))
+	} else {
+		m.Disk = types.Int64Value(0)
+	}
+
+	if vm.Comments != nil {
+		m.Comments = types.StringValue(*vm.Comments)
+	} else {
+		m.Comments = types.StringValue("")
+	}
+
+	if vm.Tenant.IsSet() {
+		tenant := vm.Tenant.Get()
+		if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
+			m.TenantID = types.StringValue(*tenant.Id.String)
+		} else {
+			m.TenantID = types.StringValue("")
+		}
+	} else {
+		m.TenantID = types.StringValue("")
+	}
+
+	if vm.Platform.IsSet() {
+		p := vm.Platform.Get()
+		if p != nil && p.Id != nil && p.Id.String != nil {
+			m.PlatformID = types.StringValue(*p.Id.String)
+		} else {
+			m.PlatformID = types.StringValue("")
+		}
+	} else {
+		m.PlatformID = types.StringValue("")
+	}
+
+	if vm.Role.IsSet() {
+		rv := vm.Role.Get()
+		if rv != nil && rv.Id != nil && rv.Id.String != nil {
+			m.RoleID = types.StringValue(*rv.Id.String)
+		} else {
+			m.RoleID = types.StringValue("")
+		}
+	} else {
+		m.RoleID = types.StringValue("")
+	}
+
+	if vm.SoftwareVersion.IsSet() {
+		sv := vm.SoftwareVersion.Get()
+		if sv != nil && sv.Id != nil && sv.Id.String != nil {
+			m.SoftwareVersionID = types.StringValue(*sv.Id.String)
+		} else {
+			m.SoftwareVersionID = types.StringValue("")
+		}
+	} else {
+		m.SoftwareVersionID = types.StringValue("")
+	}
+
+	if len(vm.Tags) > 0 {
+		vals := make([]attr.Value, 0, len(vm.Tags))
+		for _, t := range vm.Tags {
+			if t.Id != nil && t.Id.String != nil {
+				vals = append(vals, types.StringValue(*t.Id.String))
+			}
+		}
+		m.TagsIDs = types.ListValueMust(types.StringType, vals)
+	} else {
+		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+	}
+
+	if vm.Created.IsSet() && vm.Created.Get() != nil {
+		m.Created = types.StringValue(vm.Created.Get().Format(time.RFC3339))
+	} else {
+		m.Created = types.StringNull()
+	}
+
+	tflog.Debug(ctx, "read VM", map[string]any{"id": id})
+	return m, diags
 }

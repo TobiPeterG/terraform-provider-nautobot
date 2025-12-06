@@ -10,8 +10,6 @@ resource "nautobot_virtual_machine" "new" {
 #  tenant_id          = "some-tenant-id" # Optional
 #  platform_id        = "Linux"          # Optional
 #  role_id            = "Web Server"     # Optional
-#  primary_ip4_id     = nautobot_available_ip_address.example.id
-#  primary_ip6_id     = "2001:db8::100"  # Optional
 #  software_version_id = "v1.0"          # Optional
 
 #  tags_ids = ["tag1", "tag2"] # Optional tags

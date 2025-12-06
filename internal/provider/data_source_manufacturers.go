@@ -2,75 +2,90 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func dataSourceManufacturers() *schema.Resource {
-	return &schema.Resource{
-		Description: "Manufacturer data source in the Terraform provider Nautobot.",
+var (
+	_ datasource.DataSource              = &ManufacturersDataSource{}
+	_ datasource.DataSourceWithConfigure = &ManufacturersDataSource{}
+)
 
-		ReadContext: dataSourceManufacturersRead,
+type ManufacturersDataSource struct {
+	client *APIClient
+}
 
-		Schema: map[string]*schema.Schema{
-			"manufacturers": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
+type manufacturerItemModel struct {
+	ID          types.String `tfsdk:"id"`
+	Display     types.String `tfsdk:"display"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Created     types.String `tfsdk:"created"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	NotesURL    types.String `tfsdk:"notes_url"`
+}
+
+type manufacturersDataSourceModel struct {
+	Manufacturers []manufacturerItemModel `tfsdk:"manufacturers"`
+}
+
+func NewManufacturersDataSource() datasource.DataSource {
+	return &ManufacturersDataSource{}
+}
+
+func (d *ManufacturersDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_manufacturers"
+}
+
+func (d *ManufacturersDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
+		Description: "Manufacturer data source in the Terraform Nautobot provider. Retrieves information about all manufacturers.",
+		Attributes: map[string]dsschema.Attribute{
+			"manufacturers": dsschema.ListNestedAttribute{
+				Description: "List of manufacturers.",
+				Computed:    true,
+				NestedObject: dsschema.NestedAttributeObject{
+					Attributes: map[string]dsschema.Attribute{
+						"id": dsschema.StringAttribute{
 							Description: "Manufacturer's UUID.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"object_type": {
-							Description: "Object type of the Manufacturer.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"display": {
+						"display": dsschema.StringAttribute{
 							Description: "Human friendly display value for the Manufacturer.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"url": {
+						"url": dsschema.StringAttribute{
 							Description: "URL of the Manufacturer.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"natural_slug": {
+						"natural_slug": dsschema.StringAttribute{
 							Description: "Natural slug for the Manufacturer.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"name": {
+						"name": dsschema.StringAttribute{
 							Description: "Manufacturer's name.",
-							Type:        schema.TypeString,
-							Required:    true,
+							Computed:    true,
 						},
-						"description": {
+						"description": dsschema.StringAttribute{
 							Description: "Manufacturer's description.",
-							Type:        schema.TypeString,
-							Optional:    true,
-						},
-						"created": {
-							Description: "Manufacturer's creation date.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"last_updated": {
-							Description: "Manufacturer's last update.",
-							Type:        schema.TypeString,
+						"created": dsschema.StringAttribute{
+							Description: "Manufacturer's creation date (RFC3339).",
 							Computed:    true,
 						},
-						"notes_url": {
+						"last_updated": dsschema.StringAttribute{
+							Description: "Manufacturer's last update date (RFC3339).",
+							Computed:    true,
+						},
+						"notes_url": dsschema.StringAttribute{
 							Description: "Notes URL for the Manufacturer.",
-							Type:        schema.TypeString,
-							Optional:    true,
 							Computed:    true,
 						},
 					},
@@ -80,76 +95,76 @@ func dataSourceManufacturers() *schema.Resource {
 	}
 }
 
-// Use this as reference: https://learn.hashicorp.com/tutorials/terraform/provider-setup?in=terraform/providers#implement-read
-func dataSourceManufacturersRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *ManufacturersDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
-	t := meta.(*apiClient).Token.token
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+func (d *ManufacturersDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state manufacturersDataSourceModel
 
-	rsp, _, err := c.DcimAPI.DcimManufacturersList(auth).Execute()
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
+	}
+
+	c := d.client.Client
+
+	rsp, httpResp, err := c.DcimAPI.
+		DcimManufacturersList(ctx).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to get manufacturers list from %s: %s", s, err.Error())
+		resp.Diagnostics.AddError(
+			"Failed to get manufacturers list",
+			httpErr(err, httpResp),
+		)
+		return
 	}
 
 	results := rsp.Results
+	state.Manufacturers = make([]manufacturerItemModel, 0, len(results))
 
-	list := make([]map[string]interface{}, 0)
-
-	// Iterate over the results and map each manufacturer to the format expected by Terraform
-	for _, manufacturer := range results {
-		createdStr := ""
-		if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
-			createdStr = manufacturer.Created.Get().Format(time.RFC3339)
-		}
-
-		lastUpdatedStr := ""
-		if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
-			lastUpdatedStr = manufacturer.LastUpdated.Get().Format(time.RFC3339)
-		}
+	for _, m := range results {
+		var item manufacturerItemModel
 
 		idStr := ""
-		if manufacturer.Id != nil {
-			idStr = *manufacturer.Id
+		if m.Id != nil {
+			idStr = *m.Id
+		}
+		item.ID = types.StringValue(idStr)
+
+		createdStr := ""
+		if m.Created.IsSet() && m.Created.Get() != nil {
+			createdStr = m.Created.Get().Format(time.RFC3339)
+		}
+		lastUpdatedStr := ""
+		if m.LastUpdated.IsSet() && m.LastUpdated.Get() != nil {
+			lastUpdatedStr = m.LastUpdated.Get().Format(time.RFC3339)
 		}
 
 		descStr := ""
-		if manufacturer.Description != nil {
-			descStr = *manufacturer.Description
+		if m.Description != nil {
+			descStr = *m.Description
 		}
 
-		itemMap := map[string]interface{}{
-			"id":           idStr,
-			"object_type":  manufacturer.ObjectType,
-			"display":      manufacturer.Display,
-			"url":          manufacturer.Url,
-			"natural_slug": manufacturer.NaturalSlug,
-			"name":         manufacturer.Name,
-			"description":  descStr,
-			"created":      createdStr,
-			"last_updated": lastUpdatedStr,
-			"notes_url":    manufacturer.NotesUrl,
-		}
-		list = append(list, itemMap)
+		item.Display = types.StringValue(m.Display)
+		item.URL = types.StringValue(m.Url)
+		item.NaturalSlug = types.StringValue(m.NaturalSlug)
+		item.Name = types.StringValue(m.Name)
+		item.Description = types.StringValue(descStr)
+		item.Created = types.StringValue(createdStr)
+		item.LastUpdated = types.StringValue(lastUpdatedStr)
+		item.NotesURL = types.StringValue(m.NotesUrl)
+
+		state.Manufacturers = append(state.Manufacturers, item)
 	}
 
-	if err := d.Set("manufacturers", list); err != nil {
-		return diag.FromErr(err)
-	}
+	tflog.Debug(ctx, "read manufacturers", map[string]any{"count": len(state.Manufacturers)})
 
-	// always run
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-
-	return diags
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

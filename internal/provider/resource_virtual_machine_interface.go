@@ -5,507 +5,663 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func resourceVMInterface() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ resource.Resource                = &VMInterfaceResource{}
+	_ resource.ResourceWithImportState = &VMInterfaceResource{}
+)
+
+type VMInterfaceResource struct {
+	client *APIClient
+}
+
+type vmInterfaceModel struct {
+	ID               types.String `tfsdk:"id"`
+	Name             types.String `tfsdk:"name"`
+	MacAddress       types.String `tfsdk:"mac_address"`
+	Enabled          types.Bool   `tfsdk:"enabled"`
+	MTU              types.Int64  `tfsdk:"mtu"`
+	Mode             types.String `tfsdk:"mode"`
+	Description      types.String `tfsdk:"description"`
+	Status           types.String `tfsdk:"status"`
+	VirtualMachineID types.String `tfsdk:"virtual_machine_id"`
+	UntaggedVlanID   types.String `tfsdk:"untagged_vlan_id"`
+	TagsIDs          types.List   `tfsdk:"tags_ids"`
+	IPAddresses      types.List   `tfsdk:"ip_addresses"`
+	Created          types.String `tfsdk:"created"`
+}
+
+func NewVMInterfaceResource() resource.Resource {
+	return &VMInterfaceResource{}
+}
+
+func (r *VMInterfaceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_vm_interface"
+}
+
+func (r *VMInterfaceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = rschema.Schema{
 		Description: "This object manages a VM Interface in Nautobot",
-
-		CreateContext: resourceVMInterfaceCreate,
-		ReadContext:   resourceVMInterfaceRead,
-		UpdateContext: resourceVMInterfaceUpdate,
-		DeleteContext: resourceVMInterfaceDelete,
-
-		Schema: map[string]*schema.Schema{
-			"name": {
+		Attributes: map[string]rschema.Attribute{
+			"id": rschema.StringAttribute{
+				Computed:    true,
+				Description: "VM Interface UUID.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"name": rschema.StringAttribute{
+				Required:    true,
 				Description: "Name of the VM interface.",
-				Type:        schema.TypeString,
+			},
+			"status": rschema.StringAttribute{
 				Required:    true,
+				Description: "Status of the VM interface (name).",
 			},
-			"mac_address": {
-				Description: "MAC address of the interface.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-			},
-			"enabled": {
-				Description: "Whether the interface is enabled.",
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Default:     true,
-			},
-			"mtu": {
-				Description: "MTU size of the interface.",
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Default:     0,
-			},
-			"mode": {
-				Description: "Mode of the interface.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-			},
-			"description": {
-				Description: "Description of the interface.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-			},
-			"status": {
-				Description: "Status of the VM interface.",
-				Type:        schema.TypeString,
+			"virtual_machine_id": rschema.StringAttribute{
 				Required:    true,
-			},
-			"virtual_machine_id": {
 				Description: "ID of the virtual machine to which the interface belongs.",
-				Type:        schema.TypeString,
-				Required:    true,
 			},
-			"untagged_vlan_id": {
+			"mac_address": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "MAC address of the interface.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"enabled": rschema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
+				Description: "Whether the interface is enabled.",
+			},
+			"mtu": rschema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     int64default.StaticInt64(0),
+				Description: "MTU size of the interface.",
+			},
+			"mode": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Mode of the interface.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"description": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Description of the interface.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"untagged_vlan_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "Untagged VLAN ID associated with the interface.",
-				Type:        schema.TypeString,
-				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"tags_ids": {
+			"tags_ids": rschema.ListAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 				Description: "Tags associated with the interface.",
-				Type:        schema.TypeList,
-				Optional:    true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"ip_addresses": {
-				Description: "List of IP addresses to assign to the VM interface.",
-				Type:        schema.TypeList,
+			"ip_addresses": rschema.ListAttribute{
 				Optional:    true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
+				Computed:    true,
+				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				Description: "List of IP address IDs to assign to the VM interface.",
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"created": {
-				Description: "Creation date of the interface.",
-				Type:        schema.TypeString,
+			"created": rschema.StringAttribute{
 				Computed:    true,
-			},
-			"last_updated": {
-				Description: "Last updated date of the interface.",
-				Type:        schema.TypeString,
-				Computed:    true,
+				Description: "Creation date of the interface (RFC3339).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
 }
 
-func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (r *VMInterfaceResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	r.client = req.ProviderData.(*APIClient)
+}
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
+func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan vmInterfaceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	c := r.client.Client
+
+	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("failed to get status id", err.Error())
+		return
+	}
+
+	var body nb.WritableVMInterfaceRequest
+	body.Name = plan.Name.ValueString()
+
+	body.Status = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+			String: stringPtr(statusID),
 		},
-	)
+	}
 
-	// Check if the interface with the same name and virtual machine ID exists
-	interfaceName := d.Get("name").(string)
-	virtualMachineID := d.Get("virtual_machine_id").(string)
+	body.VirtualMachine = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+			String: stringPtr(plan.VirtualMachineID.ValueString()),
+		},
+	}
 
-	existingInterfaces, _, err := c.VirtualizationAPI.VirtualizationInterfacesList(auth).
-		Name([]string{interfaceName}).
-		VirtualMachine([]string{virtualMachineID}).
+	if v := plan.MacAddress.ValueString(); v != "" {
+		body.MacAddress.Set(&v)
+	}
+	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
+		en := plan.Enabled.ValueBool()
+		body.Enabled = &en
+	}
+	if !plan.MTU.IsNull() && !plan.MTU.IsUnknown() {
+		if v := plan.MTU.ValueInt64(); v > 0 {
+			mtu := int32(v)
+			body.Mtu.Set(&mtu)
+		} else {
+			body.Mtu.Unset()
+		}
+	}
+	if v := plan.Description.ValueString(); v != "" {
+		body.Description = &v
+	}
+	if v := plan.UntaggedVlanID.ValueString(); v != "" {
+		uvVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(v),
+			},
+		}
+		var uv nb.NullableApprovalWorkflowUser
+		uv.Set(&uvVal)
+		body.UntaggedVlan = uv
+	}
+
+	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if len(tagIDs) > 0 {
+			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			for _, t := range tagIDs {
+				if t == "" {
+					continue
+				}
+				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+						String: stringPtr(t),
+					},
+				})
+			}
+			body.Tags = tags
+		}
+	}
+
+	created, httpResp, err := c.VirtualizationAPI.
+		VirtualizationInterfacesCreate(ctx).
+		WritableVMInterfaceRequest(body).
 		Execute()
 	if err != nil {
-		return diag.Errorf("failed to list VM interfaces: %s", err.Error())
+		resp.Diagnostics.AddError("failed to create VM interface", httpErr(err, httpResp))
+		return
+	}
+	if created.Id == nil || *created.Id == "" {
+		resp.Diagnostics.AddError("invalid API response", "created VM interface returned no id")
+		return
 	}
 
-	if len(existingInterfaces.Results) > 0 {
-		// Interface already exists, use its ID and skip creation
-		if existingInterfaces.Results[0].Id == nil || *existingInterfaces.Results[0].Id == "" {
-			return diag.Errorf("existing VM interface %q returned no id", interfaceName)
+	if !plan.IPAddresses.IsNull() && !plan.IPAddresses.IsUnknown() {
+		var ips []string
+		resp.Diagnostics.Append(plan.IPAddresses.ElementsAs(ctx, &ips, false)...)
+		if resp.Diagnostics.HasError() {
+			return
 		}
-		d.SetId(*existingInterfaces.Results[0].Id)
-		return resourceVMInterfaceRead(ctx, d, meta)
-	}
-
-	// Convert status name to ID
-	statusName := d.Get("status").(string)
-	statusID, err := getStatusID(ctx, c, t, statusName)
-	if err != nil {
-		return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
-	}
-
-	// Prepare the VMInterface request
-	var vmInterface nb.WritableVMInterfaceRequest
-	vmInterface.Name = interfaceName
-	vmInterface.Status = nb.BulkWritableCableRequestStatus{
-		Id: &nb.BulkWritableCableRequestStatusId{String: &statusID},
-	}
-
-	// Set optional fields
-	if v, ok := d.GetOk("mac_address"); ok && v.(string) != "" {
-		vmInterface.MacAddress.Set(stringPtr(v.(string)))
-	}
-	if v, ok := d.GetOk("enabled"); ok {
-		enabled := v.(bool)
-		vmInterface.Enabled = &enabled
-	}
-	if v, ok := d.GetOk("mtu"); ok {
-		mtu := int32(v.(int))
-		vmInterface.Mtu.Set(&mtu)
-	}
-	if v, ok := d.GetOk("description"); ok && v.(string) != "" {
-		desc := v.(string)
-		vmInterface.Description = &desc
-	}
-
-	// Handle virtual machine ID
-	vmInterface.VirtualMachine.Id = &nb.BulkWritableCableRequestStatusId{String: &virtualMachineID}
-
-	// Create the interface
-	rsp, _, err := c.VirtualizationAPI.VirtualizationInterfacesCreate(auth).WritableVMInterfaceRequest(vmInterface).Execute()
-	if err != nil {
-		return diag.Errorf("failed to create VM interface: %s", err.Error())
-	}
-
-	// Set resource ID
-	if rsp.Id == nil || *rsp.Id == "" {
-		return diag.Errorf("created VM interface returned no id")
-	}
-	d.SetId(*rsp.Id)
-
-	// Assign IP addresses to the VM interface
-	if v, ok := d.GetOk("ip_addresses"); ok {
-		ipAddresses := v.([]interface{})
-		for _, ip := range ipAddresses {
-			str := ip.(string)
-			if str == "" {
+		for _, ip := range ips {
+			if ip == "" {
 				continue
 			}
-			if err := assignIPAddressToVMInterface(ctx, c, t, str, *rsp.Id); err != nil {
-				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
+			if err := r.assignIPAddressToVMInterface(ctx, ip, *created.Id); err != nil {
+				resp.Diagnostics.AddError("failed to assign IP address to VM interface", err.Error())
+				return
 			}
 		}
 	}
 
-	return resourceVMInterfaceRead(ctx, d, meta)
+	model, diags := r.readModel(ctx, *created.Id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	tflog.Debug(ctx, "vm interface created", map[string]any{"id": *created.Id, "name": plan.Name.ValueString()})
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (r *VMInterfaceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state vmInterfaceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
-		},
-	)
+	model, diags := r.readModel(ctx, state.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
 
-	// Fetch interface by ID
-	vmInterfaceId := d.Id()
-	vmInterface, _, err := c.VirtualizationAPI.VirtualizationInterfacesRetrieve(auth, vmInterfaceId).Execute()
+func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state vmInterfaceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id := state.ID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedWritableVMInterfaceRequest
+
+	if !plan.Name.Equal(state.Name) {
+		v := plan.Name.ValueString()
+		patch.Name = &v
+	}
+
+	if !plan.MacAddress.Equal(state.MacAddress) {
+		v := plan.MacAddress.ValueString()
+		if v == "" {
+			patch.MacAddress.Unset()
+		} else {
+			patch.MacAddress.Set(&v)
+		}
+	}
+
+	if !plan.Enabled.Equal(state.Enabled) {
+		v := plan.Enabled.ValueBool()
+		patch.Enabled = &v
+	}
+
+	if !plan.MTU.Equal(state.MTU) {
+		v := plan.MTU.ValueInt64()
+		if v > 0 {
+			mtu := int32(v)
+			patch.Mtu.Set(&mtu)
+		} else {
+			patch.Mtu.Set(nil)
+		}
+	}
+
+	if !plan.Description.Equal(state.Description) {
+		if plan.Description.ValueString() == "" {
+			empty := ""
+			patch.Description = &empty
+		} else {
+			v := plan.Description.ValueString()
+			patch.Description = &v
+		}
+	}
+
+	if !plan.Status.Equal(state.Status) {
+		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("failed to get status id", err.Error())
+			return
+		}
+		statusRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(statusID),
+			},
+		}
+		patch.Status = &statusRef
+	}
+
+	if !plan.VirtualMachineID.Equal(state.VirtualMachineID) {
+		vmid := plan.VirtualMachineID.ValueString()
+		vmRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(vmid),
+			},
+		}
+		patch.VirtualMachine = &vmRef
+	}
+
+	if !plan.UntaggedVlanID.Equal(state.UntaggedVlanID) {
+		if plan.UntaggedVlanID.ValueString() == "" {
+			patch.UntaggedVlan.Set(nil)
+		} else {
+			uvVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.UntaggedVlanID.ValueString()),
+				},
+			}
+			var uv nb.NullableApprovalWorkflowUser
+			uv.Set(&uvVal)
+			patch.UntaggedVlan = uv
+		}
+	}
+
+	if !plan.TagsIDs.Equal(state.TagsIDs) {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		for _, t := range tagIDs {
+			if t == "" {
+				continue
+			}
+			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(t),
+				},
+			})
+		}
+		patch.Tags = tags
+	}
+
+	_, httpResp, err := c.VirtualizationAPI.
+		VirtualizationInterfacesPartialUpdate(ctx, id).
+		PatchedWritableVMInterfaceRequest(patch).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to read VM interface: %s", err.Error())
+		resp.Diagnostics.AddError("failed to update VM interface", httpErr(err, httpResp))
+		return
 	}
 
-	// Map the retrieved data back to Terraform state
-	d.Set("name", vmInterface.Name)
+	{
+		var desiredIPs []string
+		resp.Diagnostics.Append(plan.IPAddresses.ElementsAs(ctx, &desiredIPs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 
-	// mac_address
-	if vmInterface.MacAddress.IsSet() && vmInterface.MacAddress.Get() != nil {
-		d.Set("mac_address", *vmInterface.MacAddress.Get())
+		currentModel, diags := r.readModel(ctx, id)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		var currentIPs []string
+		resp.Diagnostics.Append(currentModel.IPAddresses.ElementsAs(ctx, &currentIPs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		currentSet := sliceToSet(currentIPs)
+		desiredSet := sliceToSet(desiredIPs)
+
+		toRemove := setDiff(currentSet, desiredSet)
+		toAdd := setDiff(desiredSet, currentSet)
+
+		for _, ip := range toRemove {
+			if err := r.removeIPAddressFromVMInterface(ctx, ip, id); err != nil {
+				resp.Diagnostics.AddError("failed removing IP from VM interface", err.Error())
+				return
+			}
+		}
+		for _, ip := range toAdd {
+			if err := r.assignIPAddressToVMInterface(ctx, ip, id); err != nil {
+				resp.Diagnostics.AddError("failed assigning IP to VM interface", err.Error())
+				return
+			}
+		}
+	}
+
+	model, diags := r.readModel(ctx, id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	tflog.Debug(ctx, "vm interface updated", map[string]any{"id": id})
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VMInterfaceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state vmInterfaceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationInterfacesDestroy(ctx, state.ID.ValueString()).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to delete VM interface", httpErr(err, httpResp))
+		return
+	}
+}
+
+func (r *VMInterfaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInterfaceModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	ifc, httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationInterfacesRetrieve(ctx, id).
+		Execute()
+	if err != nil {
+		diags.AddError("failed to read VM interface", httpErr(err, httpResp))
+		return vmInterfaceModel{}, diags
+	}
+
+	var m vmInterfaceModel
+	m.ID = types.StringValue(id)
+	m.Name = types.StringValue(ifc.Name)
+
+	if ifc.MacAddress.IsSet() && ifc.MacAddress.Get() != nil {
+		m.MacAddress = types.StringValue(*ifc.MacAddress.Get())
 	} else {
-		d.Set("mac_address", "")
+		m.MacAddress = types.StringValue("")
 	}
 
-	// enabled
-	if vmInterface.Enabled != nil {
-		d.Set("enabled", *vmInterface.Enabled)
+	if ifc.Enabled != nil {
+		m.Enabled = types.BoolValue(*ifc.Enabled)
 	} else {
-		d.Set("enabled", false)
+		m.Enabled = types.BoolValue(false)
 	}
 
-	// mtu
-	if vmInterface.Mtu.IsSet() && vmInterface.Mtu.Get() != nil {
-		d.Set("mtu", int(*vmInterface.Mtu.Get()))
+	if ifc.Mtu.IsSet() && ifc.Mtu.Get() != nil {
+		m.MTU = types.Int64Value(int64(*ifc.Mtu.Get()))
 	} else {
-		d.Set("mtu", 0)
+		m.MTU = types.Int64Value(0)
 	}
 
-	// description
-	if vmInterface.Description != nil {
-		d.Set("description", *vmInterface.Description)
+	if ifc.Description != nil {
+		m.Description = types.StringValue(*ifc.Description)
 	} else {
-		d.Set("description", "")
+		m.Description = types.StringValue("")
 	}
 
-	// status -> name (default to "")
 	statusName := ""
-	if vmInterface.Status.Id != nil && vmInterface.Status.Id.String != nil {
-		statusID := *vmInterface.Status.Id.String
-		if statusID != "" {
-			if n, err := getStatusName(ctx, c, t, statusID); err == nil {
+	if ifc.Status.Id != nil && ifc.Status.Id.String != nil {
+		if *ifc.Status.Id.String != "" {
+			if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *ifc.Status.Id.String); err == nil {
 				statusName = n
 			}
 		}
 	}
-	d.Set("status", statusName)
+	m.Status = types.StringValue(statusName)
 
-	// virtual_machine_id -> default ""
 	vmID := ""
-	if vmInterface.VirtualMachine.Id != nil && vmInterface.VirtualMachine.Id.String != nil {
-		vmID = *vmInterface.VirtualMachine.Id.String
+	if ifc.VirtualMachine.Id != nil && ifc.VirtualMachine.Id.String != nil {
+		vmID = *ifc.VirtualMachine.Id.String
 	}
-	d.Set("virtual_machine_id", vmID)
+	m.VirtualMachineID = types.StringValue(vmID)
 
-	// untagged_vlan_id -> default ""
 	untagged := ""
-	if vmInterface.UntaggedVlan.IsSet() {
-		if uv := vmInterface.UntaggedVlan.Get(); uv != nil && uv.Id != nil && uv.Id.String != nil {
+	if ifc.UntaggedVlan.IsSet() {
+		if uv := ifc.UntaggedVlan.Get(); uv != nil && uv.Id != nil && uv.Id.String != nil {
 			untagged = *uv.Id.String
 		}
 	}
-	d.Set("untagged_vlan_id", untagged)
+	m.UntaggedVlanID = types.StringValue(untagged)
 
-	// created / last_updated
-	createdStr := ""
-	if vmInterface.Created.IsSet() && vmInterface.Created.Get() != nil {
-		createdStr = vmInterface.Created.Get().Format(time.RFC3339)
+	if len(ifc.Tags) > 0 {
+		vals := make([]attr.Value, 0, len(ifc.Tags))
+		for _, t := range ifc.Tags {
+			if t.Id != nil && t.Id.String != nil {
+				vals = append(vals, types.StringValue(*t.Id.String))
+			}
+		}
+		m.TagsIDs = types.ListValueMust(types.StringType, vals)
+	} else {
+		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 	}
-	d.Set("created", createdStr)
 
-	lastUpdatedStr := ""
-	if vmInterface.LastUpdated.IsSet() && vmInterface.LastUpdated.Get() != nil {
-		lastUpdatedStr = vmInterface.LastUpdated.Get().Format(time.RFC3339)
-	}
-	d.Set("last_updated", lastUpdatedStr)
+	{
+		ipRels, httpResp2, err2 := r.client.Client.IpamAPI.
+			IpamIpAddressToInterfaceList(ctx).
+			VmInterface([]string{id}).
+			Execute()
+		if err2 != nil {
+			diags.AddError("failed to list IP assignments for VM interface", httpErr(err2, httpResp2))
+			return vmInterfaceModel{}, diags
+		}
 
-	// tags_ids -> always set list
-	tags := make([]string, 0, len(vmInterface.Tags))
-	for _, tag := range vmInterface.Tags {
-		if tag.Id != nil && tag.Id.String != nil {
-			tags = append(tags, *tag.Id.String)
+		if len(ipRels.Results) > 0 {
+			vals := make([]attr.Value, 0, len(ipRels.Results))
+			for _, rel := range ipRels.Results {
+				if rel.IpAddress.Id != nil && rel.IpAddress.Id.String != nil {
+					vals = append(vals, types.StringValue(*rel.IpAddress.Id.String))
+				}
+			}
+			m.IPAddresses = types.ListValueMust(types.StringType, vals)
+		} else {
+			m.IPAddresses = types.ListValueMust(types.StringType, []attr.Value{})
 		}
 	}
-	d.Set("tags_ids", tags)
 
-	// ip_addresses -> always set list
-	assignedIPs := []string{}
-	for _, ip := range vmInterface.IpAddresses {
-		if ip.Id != nil && ip.Id.String != nil {
-			assignedIPs = append(assignedIPs, *ip.Id.String)
-		}
-	}
-	d.Set("ip_addresses", assignedIPs)
-
-	// mode -> default ""
 	mode := ""
-	if vmInterface.Mode != nil {
-		if vmInterface.Mode.Label != nil {
-			mode = string(*vmInterface.Mode.Label)
-		} else if vmInterface.Mode.Value != nil {
-			mode = string(*vmInterface.Mode.Value)
+	if ifc.Mode != nil {
+		if ifc.Mode.Label != nil && *ifc.Mode.Label != "" {
+			mode = string(*ifc.Mode.Label)
+		} else if ifc.Mode.Value != nil && *ifc.Mode.Value != "" {
+			mode = string(*ifc.Mode.Value)
 		}
 	}
-	d.Set("mode", mode)
+	m.Mode = types.StringValue(mode)
 
-	return nil
+	if ifc.Created.IsSet() && ifc.Created.Get() != nil {
+		m.Created = types.StringValue(ifc.Created.Get().Format(time.RFC3339))
+	} else {
+		m.Created = types.StringNull()
+	}
+
+	tflog.Debug(ctx, "read VM interface", map[string]any{"id": id})
+	return m, diags
 }
 
-func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (r *VMInterfaceResource) assignIPAddressToVMInterface(ctx context.Context, ipAddressID, vmInterfaceID string) error {
+	c := r.client.Client
 
-	vmInterfaceId := d.Id()
-
-	var vmInterface nb.PatchedWritableVMInterfaceRequest
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
-		},
-	)
-
-	// Update the fields that have changed
-	if d.HasChange("name") {
-		name := d.Get("name").(string)
-		vmInterface.Name = &name
+	ipID := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+		String: &ipAddressID,
 	}
-	if d.HasChange("mac_address") {
-		mac := d.Get("mac_address").(string)
-		if mac == "" {
-			vmInterface.MacAddress.Unset()
-		} else {
-			vmInterface.MacAddress.Set(&mac)
-		}
-	}
-	if d.HasChange("enabled") {
-		enabled := d.Get("enabled").(bool)
-		vmInterface.Enabled = &enabled
-	}
-	if d.HasChange("mtu") {
-		mtu := int32(d.Get("mtu").(int))
-		vmInterface.Mtu.Set(&mtu)
-	}
-	if d.HasChange("description") {
-		description := d.Get("description").(string)
-		if description == "" {
-			vmInterface.Description = nil
-		} else {
-			vmInterface.Description = &description
-		}
-	}
-	if d.HasChange("status") {
-		statusName := d.Get("status").(string)
-		statusID, err := getStatusID(ctx, c, t, statusName)
-		if err != nil {
-			return diag.Errorf("failed to get status ID for %s: %s", statusName, err.Error())
-		}
-		vmInterface.Status = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{String: &statusID},
-		}
-	}
-	if d.HasChange("virtual_machine_id") {
-		vmID := d.Get("virtual_machine_id").(string)
-		vmInterface.VirtualMachine = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{String: &vmID},
-		}
+	ifID := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+		String: &vmInterfaceID,
 	}
 
-	// Call the API to update the VM interface
-	_, _, err := c.VirtualizationAPI.VirtualizationInterfacesPartialUpdate(auth, vmInterfaceId).PatchedWritableVMInterfaceRequest(vmInterface).Execute()
+	ipRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: ipID,
+	}
+
+	vmIfcVal := nb.ApprovalWorkflowUser{
+		Id: ifID,
+	}
+	var vmIfcNullable nb.NullableApprovalWorkflowUser
+	vmIfcNullable.Set(&vmIfcVal)
+
+	req := nb.IPAddressToInterfaceRequest{
+		IpAddress:   ipRef,
+		VmInterface: vmIfcNullable,
+	}
+
+	_, httpResp, err := c.IpamAPI.
+		IpamIpAddressToInterfaceCreate(ctx).
+		IPAddressToInterfaceRequest(req).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to update VM interface: %s", err.Error())
-	}
-
-	// Update IP addresses if they have changed
-	if d.HasChange("ip_addresses") {
-		oldIPsRaw, newIPsRaw := d.GetChange("ip_addresses")
-
-		// Remove old IP addresses
-		for _, oldIP := range oldIPsRaw.([]interface{}) {
-			str := oldIP.(string)
-			if str == "" {
-				continue
-			}
-			if err := removeIPAddressFromVMInterface(ctx, c, t, str, vmInterfaceId); err != nil {
-				return diag.Errorf("failed to remove IP address from VM interface: %s", err.Error())
-			}
-		}
-
-		// Assign new IP addresses
-		for _, newIP := range newIPsRaw.([]interface{}) {
-			str := newIP.(string)
-			if str == "" {
-				continue
-			}
-			if err := assignIPAddressToVMInterface(ctx, c, t, str, vmInterfaceId); err != nil {
-				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
-			}
-		}
-	}
-
-	return resourceVMInterfaceRead(ctx, d, meta)
-}
-
-func resourceVMInterfaceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
-		},
-	)
-
-	// Delete the interface by ID
-	vmInterfaceId := d.Id()
-	_, err := c.VirtualizationAPI.VirtualizationInterfacesDestroy(auth, vmInterfaceId).Execute()
-	if err != nil {
-		return diag.Errorf("failed to delete VM interface: %s", err.Error())
-	}
-
-	// Clear the ID
-	d.SetId("")
-
-	return nil
-}
-
-// Helper function to assign an IP address to a VM interface
-func assignIPAddressToVMInterface(ctx context.Context, c *nb.APIClient, token, ipAddressID, vmInterfaceID string) error {
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: token, Prefix: "Token"},
-		},
-	)
-
-	ipAddressStatusId := nb.BulkWritableCableRequestStatusId{String: &ipAddressID}
-	vmInterfaceStatusId := nb.BulkWritableCableRequestStatusId{String: &vmInterfaceID}
-
-	vmInterfaceTenant := nb.BulkWritableCircuitRequestTenant{Id: &vmInterfaceStatusId}
-	vmInterfaceNullableTenant := nb.NullableBulkWritableCircuitRequestTenant{}
-	vmInterfaceNullableTenant.Set(&vmInterfaceTenant)
-
-	ipToInterfaceRequest := nb.IPAddressToInterfaceRequest{
-		IpAddress:   nb.BulkWritableCableRequestStatus{Id: &ipAddressStatusId},
-		VmInterface: vmInterfaceNullableTenant,
-	}
-
-	_, _, err := c.IpamAPI.IpamIpAddressToInterfaceCreate(auth).IPAddressToInterfaceRequest(ipToInterfaceRequest).Execute()
-	if err != nil {
-		return fmt.Errorf("failed to assign IP address to VM interface: %v", err)
+		return fmt.Errorf("%s", httpErr(err, httpResp))
 	}
 	return nil
 }
 
-func removeIPAddressFromVMInterface(ctx context.Context, c *nb.APIClient, token, ipAddressID, vmInterfaceID string) error {
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: token, Prefix: "Token"},
-		},
-	)
+func (r *VMInterfaceResource) removeIPAddressFromVMInterface(ctx context.Context, ipAddressID, vmInterfaceID string) error {
+	c := r.client.Client
 
-	ipAddress, _, err := c.IpamAPI.IpamIpAddressesRetrieve(auth, ipAddressID).Execute()
+	// Find the IpAddressToInterface relation for this ip + vm interface
+	list, httpResp, err := c.IpamAPI.
+		IpamIpAddressToInterfaceList(ctx).
+		IpAddress([]string{ipAddressID}).
+		VmInterface([]string{vmInterfaceID}).
+		Execute()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve IP address: %v", err)
+		return fmt.Errorf("failed to list IPAddressToInterface: %s", httpErr(err, httpResp))
 	}
 
-	var assignmentID string
-	for _, vmInterface := range ipAddress.VmInterfaces {
-		if vmInterface.Id != nil && vmInterface.Id.String != nil && *vmInterface.Id.String == vmInterfaceID {
-			assignmentID = *vmInterface.Id.String
-			break
-		}
+	if len(list.Results) == 0 || list.Results[0].Id == nil || *list.Results[0].Id == "" {
+		return fmt.Errorf("no assignment found for IP %s on VM interface %s", ipAddressID, vmInterfaceID)
 	}
 
-	if assignmentID == "" {
-		return fmt.Errorf("no assignment found for IP address %s and VM interface %s", ipAddressID, vmInterfaceID)
-	}
+	assignID := *list.Results[0].Id
 
-	_, err = c.IpamAPI.IpamIpAddressToInterfaceDestroy(auth, assignmentID).Execute()
+	httpResp, err = c.IpamAPI.IpamIpAddressToInterfaceDestroy(ctx, assignID).Execute()
 	if err != nil {
-		return fmt.Errorf("failed to remove IP address assignment: %v", err)
+		return fmt.Errorf("%s", httpErr(err, httpResp))
 	}
 	return nil
 }

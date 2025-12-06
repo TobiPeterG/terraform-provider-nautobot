@@ -4,167 +4,292 @@ import (
 	"context"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func resourcePrimaryIPAddressForVM() *schema.Resource {
-	return &schema.Resource{
-		Description: "This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machine in Nautobot",
+var (
+	_ resource.Resource                = &VMPrimaryIPResource{}
+	_ resource.ResourceWithImportState = &VMPrimaryIPResource{}
+)
 
-		CreateContext: resourcePrimaryIPAddressForVMCreate,
-		ReadContext:   resourcePrimaryIPAddressForVMRead,
-		UpdateContext: resourcePrimaryIPAddressForVMUpdate,
-		DeleteContext: resourcePrimaryIPAddressForVMDelete,
+type VMPrimaryIPResource struct {
+	client *APIClient
+}
 
-		Schema: map[string]*schema.Schema{
-			"virtual_machine_id": {
-				Description: "ID of the virtual machine.",
-				Type:        schema.TypeString,
+type VMPrimaryIPModel struct {
+	ID               types.String `tfsdk:"id"`
+	VirtualMachineID types.String `tfsdk:"virtual_machine_id"`
+	PrimaryIP4ID     types.String `tfsdk:"primary_ip4_id"`
+	PrimaryIP6ID     types.String `tfsdk:"primary_ip6_id"`
+}
+
+func NewVMPrimaryIPResource() resource.Resource {
+	return &VMPrimaryIPResource{}
+}
+
+func (r *VMPrimaryIPResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_vm_primary_ip"
+}
+
+func (r *VMPrimaryIPResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = rschema.Schema{
+		Description: "This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machine in Nautobot.",
+		Attributes: map[string]rschema.Attribute{
+			"id": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Resource ID (same as virtual_machine_id).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"virtual_machine_id": rschema.StringAttribute{
 				Required:    true,
+				Description: "ID of the virtual machine.",
 			},
-			"primary_ip4_id": {
+
+			"primary_ip4_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "ID of the primary IPv4 address.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"primary_ip6_id": {
+
+			"primary_ip6_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "ID of the primary IPv6 address.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
 }
 
-func resourcePrimaryIPAddressForVMCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
-		},
-	)
-
-	vmID := d.Get("virtual_machine_id").(string)
-
-	var vm nb.PatchedVirtualMachineRequest
-
-	if v, ok := d.GetOk("primary_ip4_id"); ok {
-		ip4 := strings.TrimSpace(v.(string))
-		if ip4 != "" {
-			var nullableIP4 nb.NullablePrimaryIPv4
-			primaryIPv4 := &nb.PrimaryIPv4{
-				Id: &nb.BulkWritableCableRequestStatusId{String: stringPtr(ip4)},
-			}
-			nullableIP4.Set(primaryIPv4)
-			vm.PrimaryIp4 = nullableIP4
-		}
+func (r *VMPrimaryIPResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
 	}
-
-	if v, ok := d.GetOk("primary_ip6_id"); ok {
-		ip6 := strings.TrimSpace(v.(string))
-		if ip6 != "" {
-			var nullableIP6 nb.NullablePrimaryIPv6
-			primaryIPv6 := &nb.PrimaryIPv6{
-				Id: &nb.BulkWritableCableRequestStatusId{String: stringPtr(ip6)},
-			}
-			nullableIP6.Set(primaryIPv6)
-			vm.PrimaryIp6 = nullableIP6
-		}
-	}
-
-	_, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesPartialUpdate(auth, vmID).PatchedVirtualMachineRequest(vm).Execute()
-	if err != nil {
-		return diag.Errorf("failed to set primary IP address for virtual machine: %s", err.Error())
-	}
-
-	d.SetId(vmID)
-	return resourcePrimaryIPAddressForVMRead(ctx, d, meta)
+	r.client = req.ProviderData.(*APIClient)
 }
 
-func resourcePrimaryIPAddressForVMRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
-		},
-	)
-
-	vmID := d.Id()
-
-	vm, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesRetrieve(auth, vmID).Execute()
-	if err != nil {
-		d.SetId("")
-		return diag.Errorf("failed to read virtual machine: %s", err.Error())
+func (r *VMPrimaryIPResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan VMPrimaryIPModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	vmID := plan.VirtualMachineID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedVirtualMachineRequest
+
+	if v := strings.TrimSpace(plan.PrimaryIP4ID.ValueString()); v != "" {
+		var n4 nb.NullablePrimaryIPv4
+		n4.Set(&nb.PrimaryIPv4{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(v),
+			},
+		})
+		patch.PrimaryIp4 = n4
+	}
+
+	if v := strings.TrimSpace(plan.PrimaryIP6ID.ValueString()); v != "" {
+		var n6 nb.NullablePrimaryIPv6
+		n6.Set(&nb.PrimaryIPv6{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(v),
+			},
+		})
+		patch.PrimaryIp6 = n6
+	}
+
+	_, httpResp, err := c.VirtualizationAPI.
+		VirtualizationVirtualMachinesPartialUpdate(ctx, vmID).
+		PatchedVirtualMachineRequest(patch).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to set primary IP address for virtual machine", httpErr(err, httpResp))
+		return
+	}
+
+	_ = resp.State.SetAttribute(ctx, path.Root("id"), vmID)
+
+	model, diags := r.readModel(ctx, vmID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	tflog.Debug(ctx, "primary IPs set for VM", map[string]any{"vm_id": vmID})
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VMPrimaryIPResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state VMPrimaryIPModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vmID := state.ID.ValueString()
+	if vmID == "" {
+		vmID = state.VirtualMachineID.ValueString()
+	}
+
+	model, diags := r.readModel(ctx, vmID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VMPrimaryIPResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state VMPrimaryIPModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vmID := state.ID.ValueString()
+	if vmID == "" {
+		vmID = plan.VirtualMachineID.ValueString()
+	}
+	c := r.client.Client
+
+	var patch nb.PatchedVirtualMachineRequest
+
+	if !plan.PrimaryIP4ID.Equal(state.PrimaryIP4ID) {
+		v := strings.TrimSpace(plan.PrimaryIP4ID.ValueString())
+		if v == "" {
+			var n4 nb.NullablePrimaryIPv4
+			n4.Set(nil)
+			patch.PrimaryIp4 = n4
+		} else {
+			var n4 nb.NullablePrimaryIPv4
+			n4.Set(&nb.PrimaryIPv4{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(v),
+				},
+			})
+			patch.PrimaryIp4 = n4
+		}
+	}
+
+	if !plan.PrimaryIP6ID.Equal(state.PrimaryIP6ID) {
+		v := strings.TrimSpace(plan.PrimaryIP6ID.ValueString())
+		if v == "" {
+			var n6 nb.NullablePrimaryIPv6
+			n6.Set(nil)
+			patch.PrimaryIp6 = n6
+		} else {
+			var n6 nb.NullablePrimaryIPv6
+			n6.Set(&nb.PrimaryIPv6{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(v),
+				},
+			})
+			patch.PrimaryIp6 = n6
+		}
+	}
+
+	_, httpResp, err := c.VirtualizationAPI.
+		VirtualizationVirtualMachinesPartialUpdate(ctx, vmID).
+		PatchedVirtualMachineRequest(patch).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to update primary IP address for virtual machine", httpErr(err, httpResp))
+		return
+	}
+
+	model, diags := r.readModel(ctx, vmID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	tflog.Debug(ctx, "primary IPs updated for VM", map[string]any{"vm_id": vmID})
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VMPrimaryIPResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state VMPrimaryIPModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vmID := state.ID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedVirtualMachineRequest
+	var n4 nb.NullablePrimaryIPv4
+	var n6 nb.NullablePrimaryIPv6
+	n4.Set(nil)
+	n6.Set(nil)
+	patch.PrimaryIp4 = n4
+	patch.PrimaryIp6 = n6
+
+	_, httpResp, err := c.VirtualizationAPI.
+		VirtualizationVirtualMachinesPartialUpdate(ctx, vmID).
+		PatchedVirtualMachineRequest(patch).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to remove primary IP address for virtual machine", httpErr(err, httpResp))
+		return
+	}
+}
+
+func (r *VMPrimaryIPResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *VMPrimaryIPResource) readModel(ctx context.Context, vmID string) (VMPrimaryIPModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	vm, httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationVirtualMachinesRetrieve(ctx, vmID).
+		Execute()
+	if err != nil {
+		diags.AddError("failed to read virtual machine", httpErr(err, httpResp))
+		return VMPrimaryIPModel{}, diags
+	}
+
+	var out VMPrimaryIPModel
+	out.ID = types.StringValue(vmID)
+	out.VirtualMachineID = types.StringValue(vmID)
 
 	ip4 := ""
 	if vm.PrimaryIp4.IsSet() {
-		primaryIp4 := vm.PrimaryIp4.Get()
-		if primaryIp4 != nil && primaryIp4.Id != nil && primaryIp4.Id.String != nil {
-			ip4 = *primaryIp4.Id.String
+		if v := vm.PrimaryIp4.Get(); v != nil && v.Id != nil && v.Id.String != nil {
+			ip4 = *v.Id.String
 		}
 	}
-	d.Set("primary_ip4_id", ip4)
+	out.PrimaryIP4ID = types.StringValue(ip4)
 
 	ip6 := ""
 	if vm.PrimaryIp6.IsSet() {
-		primaryIp6 := vm.PrimaryIp6.Get()
-		if primaryIp6 != nil && primaryIp6.Id != nil && primaryIp6.Id.String != nil {
-			ip6 = *primaryIp6.Id.String
+		if v := vm.PrimaryIp6.Get(); v != nil && v.Id != nil && v.Id.String != nil {
+			ip6 = *v.Id.String
 		}
 	}
-	d.Set("primary_ip6_id", ip6)
+	out.PrimaryIP6ID = types.StringValue(ip6)
 
-	d.Set("virtual_machine_id", vmID)
-
-	return nil
-}
-
-func resourcePrimaryIPAddressForVMUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	return resourcePrimaryIPAddressForVMCreate(ctx, d, meta)
-}
-
-func resourcePrimaryIPAddressForVMDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {Key: t, Prefix: "Token"},
-		},
-	)
-
-	vmID := d.Id()
-
-	var vm nb.PatchedVirtualMachineRequest
-	var nullableIP4 nb.NullablePrimaryIPv4
-	var nullableIP6 nb.NullablePrimaryIPv6
-
-	nullableIP4.Unset()
-	nullableIP6.Unset()
-
-	vm.PrimaryIp4 = nullableIP4
-	vm.PrimaryIp6 = nullableIP6
-
-	_, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesPartialUpdate(auth, vmID).PatchedVirtualMachineRequest(vm).Execute()
-	if err != nil {
-		return diag.Errorf("failed to remove primary IP address for virtual machine: %s", err.Error())
-	}
-
-	d.SetId("")
-	return nil
+	tflog.Debug(ctx, "read primary IPs for VM", map[string]any{"vm_id": vmID, "ip4": ip4, "ip6": ip6})
+	return out, diags
 }

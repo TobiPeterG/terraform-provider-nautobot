@@ -4,186 +4,220 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func dataSourceCluster() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ datasource.DataSource              = &ClusterDataSource{}
+	_ datasource.DataSourceWithConfigure = &ClusterDataSource{}
+)
+
+type ClusterDataSource struct {
+	client *APIClient
+}
+
+type clusterDataSourceModel struct {
+	Name           types.String `tfsdk:"name"`
+	ID             types.String `tfsdk:"id"`
+	ClusterTypeID  types.String `tfsdk:"cluster_type_id"`
+	ClusterGroupID types.String `tfsdk:"cluster_group_id"`
+	TenantID       types.String `tfsdk:"tenant_id"`
+	LocationID     types.String `tfsdk:"location_id"`
+	TagsIDs        types.List   `tfsdk:"tags_ids"`
+	Comments       types.String `tfsdk:"comments"`
+	Created        types.String `tfsdk:"created"`
+	LastUpdated    types.String `tfsdk:"last_updated"`
+}
+
+func NewClusterDataSource() datasource.DataSource {
+	return &ClusterDataSource{}
+}
+
+func (d *ClusterDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cluster"
+}
+
+func (d *ClusterDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
 		Description: "Retrieves information about a specific cluster in Nautobot.",
-
-		ReadContext: dataSourceClusterRead,
-
-		Schema: map[string]*schema.Schema{
-			"name": {
+		Attributes: map[string]dsschema.Attribute{
+			"name": dsschema.StringAttribute{
 				Description: "The name of the cluster.",
-				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"id": {
+			"id": dsschema.StringAttribute{
 				Description: "The UUID of the cluster.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"cluster_type_id": {
+			"cluster_type_id": dsschema.StringAttribute{
 				Description: "The ID of the cluster type.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"cluster_group_id": {
+			"cluster_group_id": dsschema.StringAttribute{
 				Description: "The ID of the cluster group.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"tenant_id": {
+			"tenant_id": dsschema.StringAttribute{
 				Description: "The ID of the tenant associated with the cluster.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"location_id": {
+			"location_id": dsschema.StringAttribute{
 				Description: "The ID of the location associated with the cluster.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"tags_ids": {
+			"tags_ids": dsschema.ListAttribute{
 				Description: "The IDs of the tags associated with the cluster.",
-				Type:        schema.TypeList,
 				Computed:    true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
+				ElementType: types.StringType,
 			},
-			"comments": {
+			"comments": dsschema.StringAttribute{
 				Description: "Comments or notes about the cluster.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"created": {
-				Description: "The creation date of the cluster.",
-				Type:        schema.TypeString,
+			"created": dsschema.StringAttribute{
+				Description: "The creation date of the cluster (RFC3339).",
 				Computed:    true,
 			},
-			"last_updated": {
-				Description: "The last update date of the cluster.",
-				Type:        schema.TypeString,
+			"last_updated": dsschema.StringAttribute{
+				Description: "The last update date of the cluster (RFC3339).",
 				Computed:    true,
 			},
 		},
 	}
 }
 
-func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *ClusterDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (d *ClusterDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data clusterDataSourceModel
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Fetch the cluster name from Terraform configuration
-	clusterName := d.Get("name").(string)
-
-	// Fetch clusters by name
-	rsp, _, err := c.VirtualizationAPI.VirtualizationClustersList(auth).Name([]string{clusterName}).Execute()
-	if err != nil {
-		return diag.Errorf("failed to get cluster with name %s: %s", clusterName, err.Error())
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Ensure at least one result is returned
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
+	}
+
+	c := d.client.Client
+
+	clusterName := data.Name.ValueString()
+
+	rsp, httpResp, err := c.VirtualizationAPI.
+		VirtualizationClustersList(ctx).
+		Name([]string{clusterName}).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to get cluster",
+			httpErr(err, httpResp),
+		)
+		return
+	}
+
 	if len(rsp.Results) == 0 {
-		return diag.Errorf("no cluster found with name %s", clusterName)
+		resp.Diagnostics.AddError(
+			"Cluster not found",
+			"No cluster found with name "+clusterName,
+		)
+		return
 	}
 
 	cluster := rsp.Results[0]
 
-	// Ensure the ID is present and set it as the Terraform resource ID
 	if cluster.Id == nil || *cluster.Id == "" {
-		return diag.Errorf("cluster %q returned no id", clusterName)
+		resp.Diagnostics.AddError(
+			"Invalid cluster data",
+			"Cluster "+clusterName+" returned no id",
+		)
+		return
 	}
 	id := *cluster.Id
-	d.SetId(id)
+	data.ID = types.StringValue(id)
 
-	// Set basic fields
-	d.Set("id", id)
-	d.Set("name", cluster.Name)
+	data.Name = types.StringValue(cluster.Name)
+
 	if cluster.Comments != nil {
-		d.Set("comments", *cluster.Comments)
+		data.Comments = types.StringValue(*cluster.Comments)
 	} else {
-		d.Set("comments", "")
+		data.Comments = types.StringValue("")
 	}
 
-	// Convert created and last updated fields to strings
 	createdStr := ""
 	if cluster.Created.IsSet() && cluster.Created.Get() != nil {
 		createdStr = cluster.Created.Get().Format(time.RFC3339)
 	}
-	d.Set("created", createdStr)
+	data.Created = types.StringValue(createdStr)
 
 	lastUpdatedStr := ""
 	if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
 		lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
 	}
-	d.Set("last_updated", lastUpdatedStr)
+	data.LastUpdated = types.StringValue(lastUpdatedStr)
 
-	// Handle cluster_type_id
 	if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
-		d.Set("cluster_type_id", *cluster.ClusterType.Id.String)
+		data.ClusterTypeID = types.StringValue(*cluster.ClusterType.Id.String)
 	} else {
-		d.Set("cluster_type_id", "")
+		data.ClusterTypeID = types.StringValue("")
 	}
 
-	// Handle cluster_group_id
 	if cluster.ClusterGroup.IsSet() {
-		if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil && clusterGroup.Id.String != nil {
-			d.Set("cluster_group_id", *clusterGroup.Id.String)
+		if cg := cluster.ClusterGroup.Get(); cg != nil && cg.Id != nil && cg.Id.String != nil {
+			data.ClusterGroupID = types.StringValue(*cg.Id.String)
 		} else {
-			d.Set("cluster_group_id", "")
+			data.ClusterGroupID = types.StringValue("")
 		}
 	} else {
-		d.Set("cluster_group_id", "")
+		data.ClusterGroupID = types.StringValue("")
 	}
 
-	// Handle tenant_id
 	if cluster.Tenant.IsSet() {
-		if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			d.Set("tenant_id", *tenant.Id.String)
+		if t := cluster.Tenant.Get(); t != nil && t.Id != nil && t.Id.String != nil {
+			data.TenantID = types.StringValue(*t.Id.String)
 		} else {
-			d.Set("tenant_id", "")
+			data.TenantID = types.StringValue("")
 		}
 	} else {
-		d.Set("tenant_id", "")
+		data.TenantID = types.StringValue("")
 	}
 
-	// Handle location_id
 	if cluster.Location.IsSet() {
-		if location := cluster.Location.Get(); location != nil && location.Id != nil && location.Id.String != nil {
-			d.Set("location_id", *location.Id.String)
+		if l := cluster.Location.Get(); l != nil && l.Id != nil && l.Id.String != nil {
+			data.LocationID = types.StringValue(*l.Id.String)
 		} else {
-			d.Set("location_id", "")
+			data.LocationID = types.StringValue("")
 		}
 	} else {
-		d.Set("location_id", "")
+		data.LocationID = types.StringValue("")
 	}
 
-	// Handle tags
-	tags := make([]string, 0, len(cluster.Tags))
-	for _, tag := range cluster.Tags {
-		if tag.Id != nil && tag.Id.String != nil {
-			tags = append(tags, *tag.Id.String)
+	if len(cluster.Tags) > 0 {
+		tagVals := make([]attr.Value, 0, len(cluster.Tags))
+		for _, tag := range cluster.Tags {
+			if tag.Id != nil && tag.Id.String != nil {
+				tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+			}
 		}
+		data.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+	} else {
+		data.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 	}
-	d.Set("tags_ids", tags)
 
-	return diags
+	tflog.Debug(ctx, "read cluster", map[string]any{"id": id, "name": clusterName})
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
