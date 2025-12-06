@@ -3,12 +3,12 @@
 page_title: "nautobot_virtual_machines Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Retrieves information about virtual machines in Nautobot.
+  Retrieves information about all virtual machines in Nautobot.
 ---
 
 # nautobot_virtual_machines (Data Source)
 
-Retrieves information about virtual machines in Nautobot.
+Retrieves information about all virtual machines in Nautobot.
 
 
 
@@ -17,29 +17,28 @@ Retrieves information about virtual machines in Nautobot.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
-- `virtual_machines` (List of Object) (see [below for nested schema](#nestedatt--virtual_machines))
+- `virtual_machines` (Attributes List) List of virtual machines. (see [below for nested schema](#nestedatt--virtual_machines))
 
 <a id="nestedatt--virtual_machines"></a>
 ### Nested Schema for `virtual_machines`
 
 Read-Only:
 
-- `cluster_id` (String)
-- `comments` (String)
-- `created` (String)
-- `disk` (Number)
-- `id` (String)
-- `last_updated` (String)
-- `memory` (Number)
-- `name` (String)
-- `platform_id` (String)
-- `primary_ip4_id` (String)
-- `primary_ip6_id` (String)
-- `role_id` (String)
-- `status` (String)
-- `tags_ids` (List of String)
-- `tenant_id` (String)
-- `vcpus` (Number)
+- `cluster_id` (String) The ID of the cluster associated with the virtual machine.
+- `comments` (String) Comments or notes about the virtual machine.
+- `created` (String) The creation date of the virtual machine (RFC3339).
+- `disk` (Number) The disk size in GB.
+- `id` (String) The UUID of the virtual machine.
+- `last_updated` (String) The last update date of the virtual machine (RFC3339).
+- `memory` (Number) The amount of memory in MB.
+- `name` (String) The name of the virtual machine.
+- `platform_id` (String) The ID of the platform associated with the virtual machine.
+- `primary_ip4_id` (String) The ID of the primary IPv4 address.
+- `primary_ip6_id` (String) The ID of the primary IPv6 address.
+- `role_id` (String) The ID of the role associated with the virtual machine.
+- `status` (String) The name of the status of the virtual machine.
+- `tags_ids` (List of String) The IDs of the tags associated with the virtual machine.
+- `tenant_id` (String) The ID of the tenant associated with the virtual machine.
+- `vcpus` (Number) The number of virtual CPUs.
 
 

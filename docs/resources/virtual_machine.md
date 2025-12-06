@@ -19,7 +19,7 @@ This object manages a virtual machine in Nautobot
 
 - `cluster_id` (String) Cluster where the virtual machine belongs.
 - `name` (String) Virtual Machine's name.
-- `status` (String) Status of the virtual machine.
+- `status` (String) Status of the virtual machine (name).
 
 ### Optional
 
@@ -27,10 +27,7 @@ This object manages a virtual machine in Nautobot
 - `disk` (Number) Disk size in GB.
 - `memory` (Number) Amount of memory in MB.
 - `platform_id` (String) Platform or OS installed on the virtual machine.
-- `primary_ip4_id` (String) Primary IPv4 address.
-- `primary_ip6_id` (String) Primary IPv6 address.
 - `role_id` (String) Role of the virtual machine.
-- `software_image_files` (Block List) Software image files associated with the software version. (see [below for nested schema](#nestedblock--software_image_files))
 - `software_version_id` (String) Software version installed on the virtual machine.
 - `tags_ids` (List of String) Tags associated with the virtual machine.
 - `tenant_id` (String) Tenant associated with the virtual machine.
@@ -38,15 +35,7 @@ This object manages a virtual machine in Nautobot
 
 ### Read-Only
 
-- `created` (String) Creation date of the virtual machine.
-- `id` (String) The ID of this resource.
-- `last_updated` (String) Last update date of the virtual machine.
-
-<a id="nestedblock--software_image_files"></a>
-### Nested Schema for `software_image_files`
-
-Read-Only:
-
-- `id` (String) The ID of this resource.
+- `created` (String) Creation timestamp (RFC3339).
+- `id` (String) Virtual Machine UUID.
 
 

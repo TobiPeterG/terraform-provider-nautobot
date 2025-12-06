@@ -21,14 +21,13 @@ Retrieves information about a specific manufacturer in Nautobot.
 
 ### Read-Only
 
-- `created` (String) Manufacturer's creation date.
+- `created` (String) Manufacturer's creation date (RFC3339).
 - `description` (String) Manufacturer's description.
 - `display` (String) Human friendly display value for the manufacturer.
 - `id` (String) Manufacturer's UUID.
-- `last_updated` (String) Manufacturer's last update.
+- `last_updated` (String) Manufacturer's last update date (RFC3339).
 - `natural_slug` (String) Natural slug for the manufacturer.
 - `notes_url` (String) Notes URL for the manufacturer.
-- `object_type` (String) Object type of the manufacturer.
 - `url` (String) URL of the manufacturer.
 
 

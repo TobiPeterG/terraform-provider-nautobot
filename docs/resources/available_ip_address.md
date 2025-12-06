@@ -3,12 +3,12 @@
 page_title: "nautobot_available_ip_address Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object allocates and manages an available IP address in Nautobot
+  This object allocates and manages an available IP address in Nautobot.
 ---
 
 # nautobot_available_ip_address (Resource)
 
-This object allocates and manages an available IP address in Nautobot
+This object allocates and manages an available IP address in Nautobot.
 
 
 
@@ -18,7 +18,7 @@ This object allocates and manages an available IP address in Nautobot
 ### Required
 
 - `prefix_id` (String) ID of the prefix to allocate the IP address from.
-- `status` (String) Status of the allocated IP address.
+- `status` (String) Status (by name) of the allocated IP address.
 
 ### Optional
 
@@ -26,8 +26,8 @@ This object allocates and manages an available IP address in Nautobot
 
 ### Read-Only
 
-- `address` (String) Allocated IP address.
-- `id` (String) The ID of this resource.
+- `address` (String) Allocated IP address in CIDR notation.
+- `id` (String) Allocated IP address UUID.
 - `ip_version` (Number) IP version of the allocated IP address (4 or 6).
 
 

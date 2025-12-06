@@ -3,12 +3,12 @@
 page_title: "nautobot_manufacturer Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a manufacturer in Nautobot
+  This object manages a manufacturer in Nautobot.
 ---
 
 # nautobot_manufacturer (Resource)
 
-This object manages a manufacturer in Nautobot
+This object manages a manufacturer in Nautobot.
 
 
 
@@ -25,13 +25,11 @@ This object manages a manufacturer in Nautobot
 
 ### Read-Only
 
-- `created` (String) Manufacturer's creation date.
+- `created` (String) Manufacturer's creation date (RFC3339).
 - `display` (String) Manufacturer's display name.
 - `id` (String) Manufacturer's UUID.
-- `last_updated` (String) Manufacturer's last update date.
 - `natural_slug` (String) Natural slug for the manufacturer.
 - `notes_url` (String) Notes URL for the manufacturer.
-- `object_type` (String) Object type of the manufacturer.
 - `url` (String) Manufacturer's URL.
 
 

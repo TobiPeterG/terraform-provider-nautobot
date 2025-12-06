@@ -28,10 +28,8 @@ This object manages a cluster type in Nautobot.
 - `created` (String) Creation date of the cluster type.
 - `display` (String) Human-friendly display value for the cluster type.
 - `id` (String) Cluster type's UUID.
-- `last_updated` (String) Last update date of the cluster type.
 - `natural_slug` (String) Natural slug for the cluster type.
 - `notes_url` (String) Notes URL for the cluster type.
-- `object_type` (String) Object type of the cluster type.
 - `url` (String) URL of the cluster type.
 
 

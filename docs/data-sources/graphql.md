@@ -21,7 +21,6 @@ Provide an interface to make GraphQL calls to Nautobot as a flexible data source
 
 ### Read-Only
 
-- `data` (String) The data returned by the GraphQL query.
-- `id` (String) The ID of this resource.
+- `data` (String) The data returned by the GraphQL query (JSON-encoded GraphQL `data` field).
 
 

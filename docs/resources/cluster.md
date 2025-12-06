@@ -17,7 +17,7 @@ This object manages a cluster in Nautobot
 
 ### Required
 
-- `cluster_type_id` (String) ID of the Cluster's type. This can be sourced from the cluster_type resource or data source.
+- `cluster_type_id` (String) ID of the Cluster's type.
 - `name` (String) Cluster's name.
 
 ### Optional
@@ -30,8 +30,7 @@ This object manages a cluster in Nautobot
 
 ### Read-Only
 
-- `created` (String) Creation date of the cluster.
-- `id` (String) The ID of this resource.
-- `last_updated` (String) Last update date of the cluster.
+- `created` (String) Creation date of the cluster (RFC3339).
+- `id` (String) Cluster's UUID.
 
 

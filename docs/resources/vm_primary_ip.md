@@ -3,12 +3,12 @@
 page_title: "nautobot_vm_primary_ip Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machine in Nautobot
+  This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machine in Nautobot.
 ---
 
 # nautobot_vm_primary_ip (Resource)
 
-This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machine in Nautobot
+This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machine in Nautobot.
 
 
 
@@ -26,6 +26,6 @@ This resource sets an IP address as the primary IPv4 or IPv6 for a virtual machi
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) Resource ID (same as virtual_machine_id).
 
 

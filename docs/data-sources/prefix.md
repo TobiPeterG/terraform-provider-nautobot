@@ -17,20 +17,30 @@ Retrieves information about a Prefix in Nautobot by either its ID or associated 
 
 ### Optional
 
-- `id` (String) The UUID of the prefix.
-- `vlan_id` (String) The UUID of the VLAN to retrieve the prefix for.
+- `id` (String) The UUID of the prefix. Exactly one of `id` or `vlan_id` must be provided.
+- `vlan_id` (String) The UUID of the VLAN to retrieve the prefix for. Exactly one of `id` or `vlan_id` must be provided.
 
 ### Read-Only
 
-- `created` (String) The creation date of the prefix.
+- `broadcast` (String) IPv4 or IPv6 broadcast address.
+- `created` (String) The creation date of the prefix (RFC3339).
+- `date_allocated` (String) Date this prefix was allocated/reserved (RFC3339).
 - `description` (String) Description of the prefix.
-- `last_updated` (String) The last update date of the prefix.
+- `display` (String) Human-friendly display value.
+- `ip_version` (Number) IP version of the prefix (4 or 6).
+- `last_updated` (String) The last update date of the prefix (RFC3339).
 - `namespace_id` (String) The ID of the namespace associated with the prefix.
+- `natural_slug` (String) Natural slug for the prefix.
+- `network` (String) IPv4 or IPv6 network address.
+- `notes_url` (String) Notes URL for the prefix.
 - `parent_id` (String) The ID of the parent of this prefix.
-- `prefix` (String) The prefix.
+- `prefix` (String) The prefix in CIDR notation.
+- `prefix_length` (Number) Length of the network prefix, in bits.
 - `rir_id` (String) The ID of the RIR associated with the prefix.
 - `role_id` (String) The ID of the role associated with the prefix.
-- `status` (String) The status of the prefix.
+- `status` (String) The status of the prefix (name).
+- `tags_ids` (List of String) The IDs of the tags associated with the prefix.
 - `tenant_id` (String) The ID of the tenant associated with the prefix.
+- `url` (String) API URL of the prefix.
 
 

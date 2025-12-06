@@ -18,14 +18,14 @@ This object manages a VM Interface in Nautobot
 ### Required
 
 - `name` (String) Name of the VM interface.
-- `status` (String) Status of the VM interface.
+- `status` (String) Status of the VM interface (name).
 - `virtual_machine_id` (String) ID of the virtual machine to which the interface belongs.
 
 ### Optional
 
 - `description` (String) Description of the interface.
 - `enabled` (Boolean) Whether the interface is enabled.
-- `ip_addresses` (List of String) List of IP addresses to assign to the VM interface.
+- `ip_addresses` (List of String) List of IP address IDs to assign to the VM interface.
 - `mac_address` (String) MAC address of the interface.
 - `mode` (String) Mode of the interface.
 - `mtu` (Number) MTU size of the interface.
@@ -34,8 +34,7 @@ This object manages a VM Interface in Nautobot
 
 ### Read-Only
 
-- `created` (String) Creation date of the interface.
-- `id` (String) The ID of this resource.
-- `last_updated` (String) Last updated date of the interface.
+- `created` (String) Creation date of the interface (RFC3339).
+- `id` (String) VM Interface UUID.
 
 

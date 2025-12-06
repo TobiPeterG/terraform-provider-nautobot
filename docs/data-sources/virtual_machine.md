@@ -23,10 +23,10 @@ Retrieves information about a specific virtual machine in Nautobot.
 
 - `cluster_id` (String) The ID of the cluster associated with the virtual machine.
 - `comments` (String) Comments or notes about the virtual machine.
-- `created` (String) The creation date of the virtual machine.
+- `created` (String) The creation date of the virtual machine (RFC3339).
 - `disk` (Number) The disk size in GB.
 - `id` (String) The UUID of the virtual machine.
-- `last_updated` (String) The last update date of the virtual machine.
+- `last_updated` (String) The last update date of the virtual machine (RFC3339).
 - `memory` (Number) The amount of memory in MB.
 - `platform_id` (String) The ID of the platform associated with the virtual machine.
 - `primary_ip4_id` (String) The ID of the primary IPv4 address.

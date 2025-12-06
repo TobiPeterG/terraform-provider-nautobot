@@ -3,12 +3,12 @@
 page_title: "nautobot_available_ip_address Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This data source retrieves an available IP address from a given prefix in Nautobot
+  This data source retrieves an available IP address from a given prefix in Nautobot.
 ---
 
 # nautobot_available_ip_address (Data Source)
 
-This data source retrieves an available IP address from a given prefix in Nautobot
+This data source retrieves an available IP address from a given prefix in Nautobot.
 
 
 
@@ -22,7 +22,6 @@ This data source retrieves an available IP address from a given prefix in Nautob
 ### Read-Only
 
 - `address` (String) The available IP address.
-- `id` (String) The ID of this resource.
 - `ip_version` (Number) The version of the IP address (4 or 6).
 
 

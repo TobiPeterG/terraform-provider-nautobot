@@ -17,25 +17,28 @@ Retrieves information about all VLANs in Nautobot.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
-- `vlans` (List of Object) (see [below for nested schema](#nestedatt--vlans))
+- `vlans` (Attributes List) List of VLANs. (see [below for nested schema](#nestedatt--vlans))
 
 <a id="nestedatt--vlans"></a>
 ### Nested Schema for `vlans`
 
 Read-Only:
 
-- `created` (String)
-- `description` (String)
-- `id` (String)
-- `last_updated` (String)
-- `locations` (List of String)
-- `name` (String)
-- `role_id` (String)
-- `status` (String)
-- `tags_ids` (List of String)
-- `tenant_id` (String)
-- `vid` (Number)
-- `vlan_group_id` (String)
+- `created` (String) The creation date of the VLAN (RFC3339).
+- `description` (String) Description of the VLAN.
+- `display` (String) Human-friendly display value.
+- `id` (String) The UUID of the VLAN.
+- `last_updated` (String) The last update date of the VLAN (RFC3339).
+- `name` (String) The name of the VLAN.
+- `natural_slug` (String) Natural slug for the VLAN.
+- `notes_url` (String) Notes URL for the VLAN.
+- `prefix_count` (Number) Number of prefixes associated with this VLAN.
+- `role_id` (String) The ID of the role associated with the VLAN.
+- `status` (String) The status of the VLAN (name).
+- `tags_ids` (List of String) The IDs of the tags associated with the VLAN.
+- `tenant_id` (String) The ID of the tenant associated with the VLAN.
+- `url` (String) API URL of the VLAN.
+- `vid` (Number) The ID (VID) of the VLAN.
+- `vlan_group_id` (String) The ID of the VLAN group.
 
 
