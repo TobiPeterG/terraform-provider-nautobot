@@ -1,18 +1,11 @@
-# Example virtual machine resource
 resource "nautobot_virtual_machine" "new" {
   name            = "Example VM"
   cluster_id      = nautobot_cluster.new.id
   status          = "Active"
   vcpus           = 4
-  memory          = 8192 # Memory in MB (8GB)
-  disk            = 100  # Disk size in GB
+  memory          = 8192
+  disk            = 100
   comments        = "This virtual machine was created using Terraform."
-#  tenant_id          = "some-tenant-id" # Optional
-#  platform_id        = "Linux"          # Optional
-#  role_id            = "Web Server"     # Optional
-#  software_version_id = "v1.0"          # Optional
-
-#  tags_ids = ["tag1", "tag2"] # Optional tags
 }
 
 output "resource_virtual_machine" {

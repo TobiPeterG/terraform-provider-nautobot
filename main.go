@@ -10,6 +10,7 @@ import (
 	"github.com/nautobot/terraform-provider-nautobot/internal/provider"
 )
 
+// This gets overridden at build time via -ldflags "-X main.version=..."
 var version = "dev"
 
 func main() {
