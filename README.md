@@ -35,13 +35,13 @@ Then commit the changes to `go.mod` and `go.sum`.
 
 ## Using the provider
 
-The provide takes two arguments, `url` and `token`. For the data sources and resources supported, take a look at the [internal/provider](internal/provider) folder. In the next example, we capture the data of all manufacturers and create a new manufacturer "Vendor I".
+The provide requires two arguments, `url` and `token`. For the data sources and resources supported, take a look at the [internal/provider](internal/provider) folder. In the next example, we capture the data of all manufacturers and create a new manufacturer "Vendor I". For all arguments that the provider accepts, see its [documentation](docs/index.md)
 
 ```hcl
 terraform {
   required_providers {
     nautobot = {
-      version = "0.0.1-beta"
+      version = "3.0.0-beta"
       source  = "nautobot/nautobot"
     }
   }
@@ -67,11 +67,11 @@ If you wish to work on the provider, you'll first need [Go](http://www.golang.or
 There are a few make targets you can leverage:
 
 - `make install`: To compile the provider.
-- `go generate ./...`: To generate or update documentation.
+- `make docs-gen`: To generate or update documentation.
 - `make local`: Test local version of the provider.
 - `make testacc`: To run the full suite of Acceptance tests.
 
-_Note:_ Acceptance tests create real resources, and often cost money to run.
+_Note:_ Acceptance tests create real resources, and cost money to run.
 
 ```sh
 $ make testacc
