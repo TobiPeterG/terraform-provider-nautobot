@@ -2,6 +2,10 @@ package provider
 
 import (
 	"context"
+	"math/rand"
+	"net/http"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -99,6 +103,21 @@ func (r *AvailableIPAddressResource) Configure(_ context.Context, req resource.C
 	r.client = req.ProviderData.(*APIClient)
 }
 
+// randomBackoff returns an increasing backoff with jitter.
+func randomBackoff(attempt int) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+
+	base := 1 * time.Millisecond
+	maxJitter := 200 * time.Millisecond
+
+	backoff := time.Duration(attempt+1) * base
+	jitter := time.Duration(rand.Int63n(int64(maxJitter)))
+
+	return backoff + jitter
+}
+
 func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan availableIPModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -130,14 +149,45 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 		body[0].DnsName = &v
 	}
 
-	alloc, httpResp, err := c.IpamAPI.
-		IpamPrefixesAvailableIpsCreate(ctx, plan.PrefixID.ValueString()).
-		IPAllocationRequest(body).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError("failed to allocate IP address", httpErr(err, httpResp))
-		return
+	// Remove when https://github.com/nautobot/nautobot/issues/8297 is fixed.
+	const maxRetries = 5
+	var alloc []nb.IPAddress
+	var httpResp *http.Response
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		alloc, httpResp, err = c.IpamAPI.
+			IpamPrefixesAvailableIpsCreate(ctx, plan.PrefixID.ValueString()).
+			IPAllocationRequest(body).
+			Execute()
+		if err == nil {
+			break
+		}
+
+		formattedErr := httpErr(err, httpResp)
+
+		isDuplicate := httpResp != nil &&
+			httpResp.StatusCode == http.StatusBadRequest &&
+			strings.Contains(formattedErr, "IP address with this Parent and Host already exists")
+
+		if !isDuplicate {
+			resp.Diagnostics.AddError("failed to allocate IP address", formattedErr)
+			return
+		}
+
+		if attempt == maxRetries-1 {
+			resp.Diagnostics.AddError("failed to allocate IP address after retries", formattedErr)
+			return
+		}
+
+		backoff := randomBackoff(attempt)
+		select {
+		case <-ctx.Done():
+			resp.Diagnostics.AddError("failed to allocate IP address", "context cancelled while retrying after duplicate allocation")
+			return
+		case <-time.After(backoff):
+		}
 	}
+
 	if len(alloc) == 0 || alloc[0].Id == nil || *alloc[0].Id == "" {
 		resp.Diagnostics.AddError("invalid API response", "no IP address id returned from allocation")
 		return
@@ -251,6 +301,14 @@ func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, p
 	if err != nil {
 		diags.AddError("failed to read IP address", httpErr(err, httpResp))
 		return availableIPModel{}, diags
+	}
+
+	// Try to derive prefixID from parent if not provided
+	if prefixID == "" && ip.Parent.IsSet() {
+		parent := ip.Parent.Get()
+		if parent != nil && parent.Id != nil && parent.Id.String != nil && *parent.Id.String != "" {
+			prefixID = *parent.Id.String
+		}
 	}
 
 	var m availableIPModel

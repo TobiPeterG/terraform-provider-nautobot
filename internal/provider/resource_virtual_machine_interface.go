@@ -3,8 +3,11 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	nb "github.com/nautobot/go-nautobot/v3"
@@ -85,6 +89,12 @@ func (r *VMInterfaceResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description: "MAC address of the interface.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^([0-9A-F]{2}:){5}[0-9A-F]{2}$`),
+						"must be an uppercase MAC address with 6 octets, e.g. AA:BB:CC:DD:EE:FF",
+					),
 				},
 			},
 			"enabled": rschema.BoolAttribute{
@@ -164,10 +174,40 @@ func (r *VMInterfaceResource) Configure(_ context.Context, req resource.Configur
 	r.client = req.ProviderData.(*APIClient)
 }
 
+func vmInterfaceModeFromString(v string) (*nb.PatchedWritableInterfaceRequestMode, error) {
+	s := strings.ToLower(strings.TrimSpace(v))
+	if s == "" {
+		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_EMPTY
+		return &mode, nil
+	}
+
+	switch s {
+	case "access":
+		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_ACCESS
+		return &mode, nil
+	case "tagged":
+		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_TAGGED
+		return &mode, nil
+	case "tagged-all", "tagged_all", "tagged all":
+		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_TAGGED_ALL
+		return &mode, nil
+	default:
+		return nil, fmt.Errorf("unsupported mode %q (valid values: access, tagged, tagged-all)", v)
+	}
+}
+
 func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan vmInterfaceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.UntaggedVlanID.ValueString() != "" && plan.Mode.ValueString() == "" {
+		resp.Diagnostics.AddError(
+			"invalid VM interface configuration",
+			"mode must be set when untagged_vlan_id is specified",
+		)
 		return
 	}
 
@@ -195,7 +235,8 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	if v := plan.MacAddress.ValueString(); v != "" {
-		body.MacAddress.Set(&v)
+		mac := strings.ToUpper(v)
+		body.MacAddress.Set(&mac)
 	}
 	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
 		en := plan.Enabled.ValueBool()
@@ -212,6 +253,16 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 	if v := plan.Description.ValueString(); v != "" {
 		body.Description = &v
 	}
+
+	if v := plan.Mode.ValueString(); v != "" {
+		modeEnum, err := vmInterfaceModeFromString(v)
+		if err != nil {
+			resp.Diagnostics.AddError("invalid mode", err.Error())
+			return
+		}
+		body.Mode = modeEnum
+	}
+
 	if v := plan.UntaggedVlanID.ValueString(); v != "" {
 		uvVal := nb.ApprovalWorkflowUser{
 			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
@@ -307,6 +358,14 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	if plan.UntaggedVlanID.ValueString() != "" && plan.Mode.ValueString() == "" {
+		resp.Diagnostics.AddError(
+			"invalid VM interface configuration",
+			"mode must be set when untagged_vlan_id is specified",
+		)
+		return
+	}
+
 	id := state.ID.ValueString()
 	c := r.client.Client
 
@@ -322,7 +381,8 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 		if v == "" {
 			patch.MacAddress.Unset()
 		} else {
-			patch.MacAddress.Set(&v)
+			mac := strings.ToUpper(v)
+			patch.MacAddress.Set(&mac)
 		}
 	}
 
@@ -373,6 +433,16 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 			},
 		}
 		patch.VirtualMachine = &vmRef
+	}
+
+	if !plan.Mode.Equal(state.Mode) {
+		v := plan.Mode.ValueString()
+		modeEnum, err := vmInterfaceModeFromString(v)
+		if err != nil {
+			resp.Diagnostics.AddError("invalid mode", err.Error())
+			return
+		}
+		patch.Mode = modeEnum
 	}
 
 	if !plan.UntaggedVlanID.Equal(state.UntaggedVlanID) {
@@ -503,7 +573,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 	m.Name = types.StringValue(ifc.Name)
 
 	if ifc.MacAddress.IsSet() && ifc.MacAddress.Get() != nil {
-		m.MacAddress = types.StringValue(*ifc.MacAddress.Get())
+		m.MacAddress = types.StringValue(strings.ToUpper(*ifc.MacAddress.Get()))
 	} else {
 		m.MacAddress = types.StringValue("")
 	}
@@ -643,7 +713,6 @@ func (r *VMInterfaceResource) assignIPAddressToVMInterface(ctx context.Context, 
 func (r *VMInterfaceResource) removeIPAddressFromVMInterface(ctx context.Context, ipAddressID, vmInterfaceID string) error {
 	c := r.client.Client
 
-	// Find the IpAddressToInterface relation for this ip + vm interface
 	list, httpResp, err := c.IpamAPI.
 		IpamIpAddressToInterfaceList(ctx).
 		IpAddress([]string{ipAddressID}).
