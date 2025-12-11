@@ -67,7 +67,7 @@ If you wish to work on the provider, you'll first need [Go](http://www.golang.or
 There are a few make targets you can leverage:
 
 - `make install`: To compile the provider.
-- `make docs-gen`: To generate or update documentation.
+- `make docs`: To generate or update documentation.
 - `make local`: Test local version of the provider.
 - `make testacc`: To run the full suite of Acceptance tests.
 

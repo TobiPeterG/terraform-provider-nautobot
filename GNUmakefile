@@ -43,7 +43,7 @@ local: install
 	sed -i "s|version =.*|version = \"${VERSION}\"|" test/provider.tf
 	cd test; tofu init -upgrade && tofu apply -auto-approve; cd ..
 
-docs-gen:
+docs:
 	sed -i "s|version =.*|version = \"${VERSION}\"|" README.md
 	go generate ./...
 
