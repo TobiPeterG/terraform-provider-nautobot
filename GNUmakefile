@@ -37,7 +37,7 @@ test:
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
 testacc:
-	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
+	TF_ACC=1 go test -p 1 $(TEST) -v $(TESTARGS) -timeout 120m
 
 local: install
 	sed -i "s|version =.*|version = \"${VERSION}\"|" test/provider.tf
