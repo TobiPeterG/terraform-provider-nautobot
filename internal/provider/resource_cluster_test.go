@@ -8,12 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-const (
-	testClusterTenantID   = "0cd8590b-1678-45ab-9ddf-f1d8f68ac8a4"
-	testClusterGroupID    = ""
-	testClusterLocationID = ""
-)
-
 func testAccClusterConfigMinimal(name string) string {
 	return testAccProviderConfig() + fmt.Sprintf(`
 resource "nautobot_cluster_type" "ct" {
@@ -25,7 +19,7 @@ resource "nautobot_cluster" "test" {
   cluster_type_id = nautobot_cluster_type.ct.id
   tenant_id       = "%s"
 }
-`, name, name, testClusterTenantID)
+`, name, name, testTenantID)
 }
 
 func testAccClusterConfigFull(name string) string {
@@ -42,7 +36,7 @@ resource "nautobot_cluster" "test" {
   cluster_group_id = "%s"
   location_id      = "%s"
 }
-`, name, name, testClusterTenantID, testClusterGroupID, testClusterLocationID)
+`, name, name, testTenantID, testClusterGroupID, testClusterLocationID)
 }
 
 func testAccClusterConfigParallel(name string) string {
@@ -69,9 +63,9 @@ resource "nautobot_cluster" "cl3" {
   tenant_id       = "%s"
 }
 `, name,
-		name, testClusterTenantID,
-		name, testClusterTenantID,
-		name, testClusterTenantID,
+		name, testTenantID,
+		name, testTenantID,
+		name, testTenantID,
 	)
 }
 
@@ -92,7 +86,7 @@ func TestAccClusterResource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet("nautobot_cluster.test", "cluster_type_id"),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "comments", ""),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "cluster_group_id", ""),
-					resource.TestCheckResourceAttr("nautobot_cluster.test", "tenant_id", testClusterTenantID),
+					resource.TestCheckResourceAttr("nautobot_cluster.test", "tenant_id", testTenantID),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "location_id", ""),
 					resource.TestCheckResourceAttrSet("nautobot_cluster.test", "created"),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "tags_ids.#", "0"),
@@ -126,7 +120,7 @@ func TestAccClusterResource_update(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "name", name+"-updated"),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "comments", "updated comment"),
-					resource.TestCheckResourceAttr("nautobot_cluster.test", "tenant_id", testClusterTenantID),
+					resource.TestCheckResourceAttr("nautobot_cluster.test", "tenant_id", testTenantID),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "cluster_group_id", testClusterGroupID),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "location_id", testClusterLocationID),
 					resource.TestCheckResourceAttr("nautobot_cluster.test", "tags_ids.#", "0"),
@@ -203,7 +197,7 @@ func TestAccClusterResource_parallel(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName1, "cluster_type_id"),
 					resource.TestCheckResourceAttr(resourceName1, "comments", ""),
 					resource.TestCheckResourceAttr(resourceName1, "cluster_group_id", ""),
-					resource.TestCheckResourceAttr(resourceName1, "tenant_id", testClusterTenantID),
+					resource.TestCheckResourceAttr(resourceName1, "tenant_id", testTenantID),
 					resource.TestCheckResourceAttr(resourceName1, "location_id", ""),
 					resource.TestCheckResourceAttr(resourceName1, "tags_ids.#", "0"),
 
@@ -212,7 +206,7 @@ func TestAccClusterResource_parallel(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName2, "cluster_type_id"),
 					resource.TestCheckResourceAttr(resourceName2, "comments", ""),
 					resource.TestCheckResourceAttr(resourceName2, "cluster_group_id", ""),
-					resource.TestCheckResourceAttr(resourceName2, "tenant_id", testClusterTenantID),
+					resource.TestCheckResourceAttr(resourceName2, "tenant_id", testTenantID),
 					resource.TestCheckResourceAttr(resourceName2, "location_id", ""),
 					resource.TestCheckResourceAttr(resourceName2, "tags_ids.#", "0"),
 
@@ -221,7 +215,7 @@ func TestAccClusterResource_parallel(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName3, "cluster_type_id"),
 					resource.TestCheckResourceAttr(resourceName3, "comments", ""),
 					resource.TestCheckResourceAttr(resourceName3, "cluster_group_id", ""),
-					resource.TestCheckResourceAttr(resourceName3, "tenant_id", testClusterTenantID),
+					resource.TestCheckResourceAttr(resourceName3, "tenant_id", testTenantID),
 					resource.TestCheckResourceAttr(resourceName3, "location_id", ""),
 					resource.TestCheckResourceAttr(resourceName3, "tags_ids.#", "0"),
 				),

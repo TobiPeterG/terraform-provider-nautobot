@@ -9,10 +9,7 @@ import (
 )
 
 const (
-	vmInterfaceResourceName  = "nautobot_vm_interface.test"
-	testVMInterfaceStatus    = "Active"
-	testVMInterfaceIPAddress = "e81bc81b-0db0-5bc4-af61-c0e8c5020987"
-	testVMInterfaceVLAN      = "9feba4b3-9fc8-5298-a6c1-8f0f77378f21"
+	vmInterfaceResourceName = "nautobot_vm_interface.test"
 )
 
 func testAccVMInterfaceConfigMinimal(name string) string {
@@ -40,7 +37,7 @@ resource "nautobot_vm_interface" "test" {
   status             = "%s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 }
-`, name, name, testTenantID, name, status, name, testVMInterfaceStatus)
+`, name, name, testTenantID, name, status, name, testStatus)
 }
 
 func testAccVMInterfaceConfigFull(name string) string {
@@ -76,7 +73,7 @@ resource "nautobot_vm_interface" "test" {
   untagged_vlan_id = "%s"
   ip_addresses     = ["%s"]
 }
-`, name, name, testTenantID, name, status, name, testVMInterfaceStatus, testVMInterfaceVLAN, testVMInterfaceIPAddress)
+`, name, name, testTenantID, name, status, name, testStatus, testVLAN, testIPAddress)
 }
 
 func testAccVMInterfaceConfigUpdated(name string) string {
@@ -112,7 +109,7 @@ resource "nautobot_vm_interface" "test" {
   untagged_vlan_id = "%s"
   ip_addresses     = ["%s"]
 }
-`, name, name, testTenantID, name, status, name, testVMInterfaceStatus, testVMInterfaceVLAN, testVMInterfaceIPAddress)
+`, name, name, testTenantID, name, status, name, testStatus, testVLAN, testIPAddress)
 }
 
 func testAccVMInterfaceConfigParallel(name string) string {
@@ -154,9 +151,9 @@ resource "nautobot_vm_interface" "if3" {
 }
 `,
 		name, name, testTenantID, name, status,
-		name, testVMInterfaceStatus,
-		name, testVMInterfaceStatus,
-		name, testVMInterfaceStatus,
+		name, testStatus,
+		name, testStatus,
+		name, testStatus,
 	)
 }
 
@@ -173,7 +170,7 @@ func TestAccVMInterfaceResource_minimal(t *testing.T) {
 				Config: testAccVMInterfaceConfigMinimal(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
 					resource.TestCheckResourceAttrSet(vmInterfaceResourceName, "virtual_machine_id"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mac_address", ""),
@@ -208,7 +205,7 @@ func TestAccVMInterfaceResource_full(t *testing.T) {
 				Config: testAccVMInterfaceConfigFull(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
 					resource.TestCheckResourceAttrSet(vmInterfaceResourceName, "virtual_machine_id"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mac_address", "AA:BB:CC:DD:EE:FF"),
@@ -217,12 +214,12 @@ func TestAccVMInterfaceResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "description", "created by terraform acceptance test"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Access"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVMInterfaceVLAN),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVLAN),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
 					resource.TestCheckTypeSetElemAttr(
 						vmInterfaceResourceName,
 						"ip_addresses.*",
-						testVMInterfaceIPAddress,
+						testIPAddress,
 					),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "tags_ids.#", "0"),
@@ -250,19 +247,19 @@ func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 				Config: testAccVMInterfaceConfigFull(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mac_address", "AA:BB:CC:DD:EE:FF"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mtu", "1500"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "description", "created by terraform acceptance test"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Access"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVMInterfaceVLAN),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVLAN),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
 					resource.TestCheckTypeSetElemAttr(
 						vmInterfaceResourceName,
 						"ip_addresses.*",
-						testVMInterfaceIPAddress,
+						testIPAddress,
 					),
 				),
 			},
@@ -275,19 +272,19 @@ func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 				Config: testAccVMInterfaceConfigUpdated(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0-updated"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mac_address", "AA:BB:CC:DD:EE:11"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "enabled", "true"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mtu", "9000"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "description", "updated by terraform acceptance test"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Tagged"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVMInterfaceVLAN),
+					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVLAN),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
 					resource.TestCheckTypeSetElemAttr(
 						vmInterfaceResourceName,
 						"ip_addresses.*",
-						testVMInterfaceIPAddress,
+						testIPAddress,
 					),
 				),
 			},
@@ -358,19 +355,19 @@ func TestAccVMInterfaceResource_parallel(t *testing.T) {
 				Config: testAccVMInterfaceConfigParallel(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName1, "name", name+"-if1"),
-					resource.TestCheckResourceAttr(resourceName1, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(resourceName1, "status", testStatus),
 					resource.TestCheckResourceAttrSet(resourceName1, "virtual_machine_id"),
 					resource.TestCheckResourceAttr(resourceName1, "tags_ids.#", "0"),
 					resource.TestCheckResourceAttr(resourceName1, "ip_addresses.#", "0"),
 
 					resource.TestCheckResourceAttr(resourceName2, "name", name+"-if2"),
-					resource.TestCheckResourceAttr(resourceName2, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(resourceName2, "status", testStatus),
 					resource.TestCheckResourceAttrSet(resourceName2, "virtual_machine_id"),
 					resource.TestCheckResourceAttr(resourceName2, "tags_ids.#", "0"),
 					resource.TestCheckResourceAttr(resourceName2, "ip_addresses.#", "0"),
 
 					resource.TestCheckResourceAttr(resourceName3, "name", name+"-if3"),
-					resource.TestCheckResourceAttr(resourceName3, "status", testVMInterfaceStatus),
+					resource.TestCheckResourceAttr(resourceName3, "status", testStatus),
 					resource.TestCheckResourceAttrSet(resourceName3, "virtual_machine_id"),
 					resource.TestCheckResourceAttr(resourceName3, "tags_ids.#", "0"),
 					resource.TestCheckResourceAttr(resourceName3, "ip_addresses.#", "0"),

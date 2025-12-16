@@ -9,9 +9,7 @@ import (
 )
 
 const (
-	vmPrimaryIPResourceName   = "nautobot_vm_primary_ip.test"
-	testVMPrimaryIPv4PrefixID = "2858ca92-f980-598b-a5b5-a8bd1cdf5c80"
-	testVMPrimaryStatus       = "Active"
+	vmPrimaryIPResourceName = "nautobot_vm_primary_ip.test"
 )
 
 func testAccVMPrimaryIPConfigIPv4Single(name string) string {
@@ -56,8 +54,8 @@ resource "nautobot_vm_primary_ip" "test" {
 `,
 		name, name, testTenantID,
 		name, status,
-		testVMPrimaryIPv4PrefixID,
-		name, testVMPrimaryStatus,
+		testPrefixID,
+		name, testStatus,
 	)
 }
 
@@ -111,9 +109,9 @@ resource "nautobot_vm_primary_ip" "test" {
 `,
 		name, name, testTenantID,
 		name, status,
-		testVMPrimaryIPv4PrefixID,
-		testVMPrimaryIPv4PrefixID,
-		name, testVMPrimaryStatus,
+		testPrefixID,
+		testPrefixID,
+		name, testStatus,
 	)
 }
 
@@ -167,9 +165,9 @@ resource "nautobot_vm_primary_ip" "test" {
 `,
 		name, name, testTenantID,
 		name, status,
-		testVMPrimaryIPv4PrefixID,
-		testVMPrimaryIPv4PrefixID,
-		name, testVMPrimaryStatus,
+		testPrefixID,
+		testPrefixID,
+		name, testStatus,
 	)
 }
 

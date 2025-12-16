@@ -1,0 +1,326 @@
+package provider
+
+import (
+	"fmt"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+)
+
+const (
+	virtualMachinesDataSourceName = "data.nautobot_virtual_machines.test"
+)
+
+func testAccVirtualMachinesDataSourceConfigBasic(base string) string {
+	status := "Active"
+
+	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_cluster_type" "ct" {
+  name = "%[1]s-ct"
+}
+
+resource "nautobot_cluster" "cl" {
+  name            = "%[1]s-cl"
+  cluster_type_id = nautobot_cluster_type.ct.id
+  tenant_id       = "%[2]s"
+}
+
+resource "nautobot_virtual_machine" "vm1" {
+  name       = "%[1]s-1"
+  cluster_id = nautobot_cluster.cl.id
+  status     = "%[3]s"
+}
+
+resource "nautobot_virtual_machine" "vm2" {
+  name       = "%[1]s-2"
+  cluster_id = nautobot_cluster.cl.id
+  status     = "%[3]s"
+}
+
+resource "nautobot_virtual_machine" "vm3" {
+  name       = "%[1]s-3"
+  cluster_id = nautobot_cluster.cl.id
+  status     = "%[3]s"
+}
+
+data "nautobot_virtual_machines" "test" {
+  depends_on = [
+    nautobot_virtual_machine.vm1,
+    nautobot_virtual_machine.vm2,
+    nautobot_virtual_machine.vm3,
+  ]
+}
+`,
+		base,
+		testTenantID,
+		status,
+	)
+}
+
+func testAccVirtualMachinesDataSourceConfigFull(base string) string {
+	status := "Active"
+
+	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_cluster_type" "ct" {
+  name = "%[1]s-ct"
+}
+
+resource "nautobot_cluster" "cl" {
+  name            = "%[1]s-cl"
+  cluster_type_id = nautobot_cluster_type.ct.id
+  tenant_id       = "%[2]s"
+}
+
+# minimal VM (to ensure mixed content works)
+resource "nautobot_virtual_machine" "vm1" {
+  name       = "%[1]s-1"
+  cluster_id = nautobot_cluster.cl.id
+  status     = "%[3]s"
+}
+
+# full VM A
+resource "nautobot_virtual_machine" "vm2" {
+  name                = "%[1]s-2"
+  cluster_id          = nautobot_cluster.cl.id
+  status              = "%[3]s"
+
+  vcpus               = 4
+  memory              = 8192
+  disk                = 100
+  comments            = "vm2 created by terraform acceptance test"
+
+  tenant_id           = "%[2]s"
+  platform_id         = "%[4]s"
+  role_id             = "%[5]s"
+  software_version_id = "%[6]s"
+}
+
+# full VM B (different values)
+resource "nautobot_virtual_machine" "vm3" {
+  name                = "%[1]s-3"
+  cluster_id          = nautobot_cluster.cl.id
+  status              = "%[3]s"
+
+  vcpus               = 8
+  memory              = 16384
+  disk                = 200
+  comments            = "vm3 created by terraform acceptance test"
+
+  tenant_id           = "%[2]s"
+  platform_id         = "%[4]s"
+  role_id             = "%[5]s"
+  software_version_id = "%[6]s"
+}
+
+data "nautobot_virtual_machines" "test" {
+  depends_on = [
+    nautobot_virtual_machine.vm1,
+    nautobot_virtual_machine.vm2,
+    nautobot_virtual_machine.vm3,
+  ]
+}
+`,
+		base,
+		testTenantID,
+		status,
+		testPlatformID,
+		testRoleID,
+		testSoftwareVersionID,
+	)
+}
+
+func testCheckVirtualMachinesCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[dsAddr]
+		if !ok {
+			return fmt.Errorf("not found: %s", dsAddr)
+		}
+		raw := rs.Primary.Attributes["virtual_machines.#"]
+		if raw == "" {
+			return fmt.Errorf("%s: virtual_machines.# is empty", dsAddr)
+		}
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return fmt.Errorf("%s: cannot parse virtual_machines.#=%q: %w", dsAddr, raw, err)
+		}
+		if n < min {
+			return fmt.Errorf("%s: expected at least %d virtual_machines, got %d", dsAddr, min, n)
+		}
+		return nil
+	}
+}
+
+func testFindVMIndexByName(dsAddr, wantName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[dsAddr]
+		if !ok {
+			return fmt.Errorf("not found: %s", dsAddr)
+		}
+		rawN := rs.Primary.Attributes["virtual_machines.#"]
+		n, err := strconv.Atoi(rawN)
+		if err != nil {
+			return fmt.Errorf("%s: cannot parse virtual_machines.#=%q: %w", dsAddr, rawN, err)
+		}
+		for i := 0; i < n; i++ {
+			k := fmt.Sprintf("virtual_machines.%d.name", i)
+			if rs.Primary.Attributes[k] == wantName {
+				return nil
+			}
+		}
+		return fmt.Errorf("%s: expected to find VM name %q in virtual_machines list", dsAddr, wantName)
+	}
+}
+
+func testCheckVMInListHasAttrs(dsAddr, vmName string, want map[string]string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[dsAddr]
+		if !ok {
+			return fmt.Errorf("not found: %s", dsAddr)
+		}
+
+		rawN := rs.Primary.Attributes["virtual_machines.#"]
+		n, err := strconv.Atoi(rawN)
+		if err != nil {
+			return fmt.Errorf("%s: cannot parse virtual_machines.#=%q: %w", dsAddr, rawN, err)
+		}
+
+		idx := -1
+		for i := 0; i < n; i++ {
+			if rs.Primary.Attributes[fmt.Sprintf("virtual_machines.%d.name", i)] == vmName {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			return fmt.Errorf("%s: expected to find VM name %q in virtual_machines list", dsAddr, vmName)
+		}
+
+		for field, expected := range want {
+			k := fmt.Sprintf("virtual_machines.%d.%s", idx, field)
+			got := rs.Primary.Attributes[k]
+			if got != expected {
+				return fmt.Errorf("%s: %s expected %q, got %q", dsAddr, k, expected, got)
+			}
+		}
+		return nil
+	}
+}
+
+func TestAccVirtualMachinesDataSource_basic(t *testing.T) {
+	t.Parallel()
+
+	base := fmt.Sprintf("tfacc-ds-vms-basic-%d", time.Now().Unix())
+
+	vm1 := base + "-1"
+	vm2 := base + "-2"
+	vm3 := base + "-3"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccVirtualMachinesDataSourceConfigBasic(base),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckVirtualMachinesCountAtLeast(virtualMachinesDataSourceName, 3),
+
+					testFindVMIndexByName(virtualMachinesDataSourceName, vm1),
+					testFindVMIndexByName(virtualMachinesDataSourceName, vm2),
+					testFindVMIndexByName(virtualMachinesDataSourceName, vm3),
+
+					testCheckVMInListHasAttrs(virtualMachinesDataSourceName, vm1, map[string]string{
+						"name":           vm1,
+						"status":         "Active",
+						"tenant_id":      "",
+						"platform_id":    "",
+						"role_id":        "",
+						"primary_ip4_id": "",
+						"primary_ip6_id": "",
+						"vcpus":          "0",
+						"memory":         "0",
+						"disk":           "0",
+						"comments":       "",
+					}),
+				),
+			},
+			{
+				Config: testAccProviderConfig(),
+			},
+		},
+	})
+}
+
+func TestAccVirtualMachinesDataSource_full(t *testing.T) {
+	t.Parallel()
+
+	base := fmt.Sprintf("tfacc-ds-vms-full-%d", time.Now().Unix())
+
+	vm1 := base + "-1"
+	vm2 := base + "-2"
+	vm3 := base + "-3"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccVirtualMachinesDataSourceConfigFull(base),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCheckVirtualMachinesCountAtLeast(virtualMachinesDataSourceName, 3),
+
+					testFindVMIndexByName(virtualMachinesDataSourceName, vm1),
+					testFindVMIndexByName(virtualMachinesDataSourceName, vm2),
+					testFindVMIndexByName(virtualMachinesDataSourceName, vm3),
+
+					testCheckVMInListHasAttrs(virtualMachinesDataSourceName, vm1, map[string]string{
+						"name":           vm1,
+						"status":         "Active",
+						"tenant_id":      "",
+						"platform_id":    "",
+						"role_id":        "",
+						"primary_ip4_id": "",
+						"primary_ip6_id": "",
+						"vcpus":          "0",
+						"memory":         "0",
+						"disk":           "0",
+						"comments":       "",
+					}),
+
+					testCheckVMInListHasAttrs(virtualMachinesDataSourceName, vm2, map[string]string{
+						"name":           vm2,
+						"status":         "Active",
+						"tenant_id":      testTenantID,
+						"platform_id":    testPlatformID,
+						"role_id":        testRoleID,
+						"primary_ip4_id": "",
+						"primary_ip6_id": "",
+						"vcpus":          "4",
+						"memory":         "8192",
+						"disk":           "100",
+						"comments":       "vm2 created by terraform acceptance test",
+					}),
+
+					testCheckVMInListHasAttrs(virtualMachinesDataSourceName, vm3, map[string]string{
+						"name":           vm3,
+						"status":         "Active",
+						"tenant_id":      testTenantID,
+						"platform_id":    testPlatformID,
+						"role_id":        testRoleID,
+						"primary_ip4_id": "",
+						"primary_ip6_id": "",
+						"vcpus":          "8",
+						"memory":         "16384",
+						"disk":           "200",
+						"comments":       "vm3 created by terraform acceptance test",
+					}),
+				),
+			},
+			{
+				Config: testAccProviderConfig(),
+			},
+		},
+	})
+}
