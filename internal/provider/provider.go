@@ -143,6 +143,7 @@ func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resour
 		NewClusterResource,
 		NewClusterTypeResource,
 		NewManufacturerResource,
+		NewPrefixResource,
 		NewVirtualMachineResource,
 		NewVMInterfaceResource,
 		NewVMPrimaryIPResource,
