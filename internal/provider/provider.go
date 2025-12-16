@@ -146,6 +146,7 @@ func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resour
 		NewVirtualMachineResource,
 		NewVMInterfaceResource,
 		NewVMPrimaryIPResource,
+		NewVLANResource,
 	}
 }
 

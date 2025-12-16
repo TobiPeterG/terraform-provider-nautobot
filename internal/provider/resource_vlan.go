@@ -1,0 +1,534 @@
+package provider
+
+import (
+	"context"
+	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
+)
+
+var _ resource.Resource = &VLANResource{}
+var _ resource.ResourceWithImportState = &VLANResource{}
+
+type VLANResource struct {
+	client *APIClient
+}
+
+type vlanModel struct {
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Vid         types.Int64  `tfsdk:"vid"`
+	Description types.String `tfsdk:"description"`
+	VLANGroupID types.String `tfsdk:"vlan_group_id"`
+	Status      types.String `tfsdk:"status"`
+	TenantID    types.String `tfsdk:"tenant_id"`
+	RoleID      types.String `tfsdk:"role_id"`
+	TagsIDs     types.List   `tfsdk:"tags_ids"`
+
+	Created     types.String `tfsdk:"created"`
+	PrefixCount types.Int64  `tfsdk:"prefix_count"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	NotesURL    types.String `tfsdk:"notes_url"`
+}
+
+func NewVLANResource() resource.Resource {
+	return &VLANResource{}
+}
+
+func (r *VLANResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_vlan"
+}
+
+func (r *VLANResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = rschema.Schema{
+		Description: "This object manages a VLAN in Nautobot",
+		Attributes: map[string]rschema.Attribute{
+			"id": rschema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Description: "VLAN UUID.",
+			},
+
+			"name": rschema.StringAttribute{
+				Required:    true,
+				Description: "VLAN name.",
+			},
+
+			"vid": rschema.Int64Attribute{
+				Required: true,
+				Validators: []validator.Int64{
+					int64validator.Between(1, 4094),
+				},
+			},
+
+			"status": rschema.StringAttribute{
+				Required:    true,
+				Description: "Status of the VLAN (name).",
+			},
+
+			"description": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Description of the VLAN.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"vlan_group_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "VLAN group UUID.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"tenant_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Tenant UUID associated with the VLAN.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"role_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Role UUID associated with the VLAN.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"tags_ids": rschema.ListAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Tags associated with the VLAN.",
+				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"created": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Creation timestamp (RFC3339).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"prefix_count": rschema.Int64Attribute{
+				Computed:    true,
+				Description: "Number of prefixes associated with this VLAN.",
+				Default:     int64default.StaticInt64(0),
+			},
+
+			"url": rschema.StringAttribute{
+				Computed:    true,
+				Description: "API URL of the VLAN.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"natural_slug": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Natural slug for the VLAN.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"notes_url": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Notes URL for the VLAN.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+		},
+	}
+}
+
+func (r *VLANResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	r.client = req.ProviderData.(*APIClient)
+}
+
+func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan vlanModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	c := r.client.Client
+
+	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("failed to get status id", err.Error())
+		return
+	}
+
+	var vlan nb.VLANRequest
+	vlan.Name = plan.Name.ValueString()
+	vlan.Vid = int32(plan.Vid.ValueInt64())
+
+	vlan.Status = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+			String: stringPtr(statusID),
+		},
+	}
+
+	if !plan.Description.IsNull() {
+		d := plan.Description.ValueString()
+		vlan.Description = &d
+	}
+
+	if plan.VLANGroupID.ValueString() != "" {
+		vgVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.VLANGroupID.ValueString()),
+			},
+		}
+		var n nb.NullableApprovalWorkflowUser
+		n.Set(&vgVal)
+		vlan.VlanGroup = n
+	}
+
+	if plan.TenantID.ValueString() != "" {
+		tVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.TenantID.ValueString()),
+			},
+		}
+		var nt nb.NullableApprovalWorkflowUser
+		nt.Set(&tVal)
+		vlan.Tenant = nt
+	}
+
+	if plan.RoleID.ValueString() != "" {
+		rVal := nb.ApprovalWorkflowUser{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(plan.RoleID.ValueString()),
+			},
+		}
+		var nr nb.NullableApprovalWorkflowUser
+		nr.Set(&rVal)
+		vlan.Role = nr
+	}
+
+	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if !resp.Diagnostics.HasError() && len(tagIDs) > 0 {
+			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			for _, t := range tagIDs {
+				if t == "" {
+					continue
+				}
+				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+						String: stringPtr(t),
+					},
+				})
+			}
+			vlan.Tags = tags
+		}
+	}
+
+	out, httpResp, err := c.IpamAPI.
+		IpamVlansCreate(ctx).
+		VLANRequest(vlan).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to create vlan", httpErr(err, httpResp))
+		return
+	}
+	if out.Id == nil || *out.Id == "" {
+		resp.Diagnostics.AddError("invalid API response", "created vlan returned no id")
+		return
+	}
+
+	model, diags := r.buildStateModel(ctx, *out.Id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VLANResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state vlanModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	model, diags := r.buildStateModel(ctx, state.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan vlanModel
+	var state vlanModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vlanID := state.ID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedVLANRequest
+
+	if !plan.Name.Equal(state.Name) {
+		v := plan.Name.ValueString()
+		patch.Name = &v
+	}
+
+	if !plan.Vid.Equal(state.Vid) {
+		v := int32(plan.Vid.ValueInt64())
+		patch.Vid = &v
+	}
+
+	if !plan.Description.Equal(state.Description) {
+		v := plan.Description.ValueString()
+		patch.Description = &v
+	}
+
+	if !plan.Status.Equal(state.Status) {
+		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("failed to get status id", err.Error())
+			return
+		}
+		patch.Status = &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+				String: stringPtr(statusID),
+			},
+		}
+	}
+
+	if !plan.VLANGroupID.Equal(state.VLANGroupID) {
+		if plan.VLANGroupID.ValueString() == "" {
+			patch.VlanGroup.Set(nil)
+		} else {
+			vgVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.VLANGroupID.ValueString()),
+				},
+			}
+			var n nb.NullableApprovalWorkflowUser
+			n.Set(&vgVal)
+			patch.VlanGroup = n
+		}
+	}
+
+	if !plan.TenantID.Equal(state.TenantID) {
+		if plan.TenantID.ValueString() == "" {
+			patch.Tenant.Set(nil)
+		} else {
+			tVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.TenantID.ValueString()),
+				},
+			}
+			var n nb.NullableApprovalWorkflowUser
+			n.Set(&tVal)
+			patch.Tenant = n
+		}
+	}
+
+	if !plan.RoleID.Equal(state.RoleID) {
+		if plan.RoleID.ValueString() == "" {
+			patch.Role.Set(nil)
+		} else {
+			rVal := nb.ApprovalWorkflowUser{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(plan.RoleID.ValueString()),
+				},
+			}
+			var n nb.NullableApprovalWorkflowUser
+			n.Set(&rVal)
+			patch.Role = n
+		}
+	}
+
+	if !plan.TagsIDs.Equal(state.TagsIDs) {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		for _, t := range tagIDs {
+			if t == "" {
+				continue
+			}
+			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(t),
+				},
+			})
+		}
+		patch.Tags = tags
+	}
+
+	_, httpResp, err := c.IpamAPI.
+		IpamVlansPartialUpdate(ctx, vlanID).
+		PatchedVLANRequest(patch).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to update vlan", httpErr(err, httpResp))
+		return
+	}
+
+	model, diags := r.buildStateModel(ctx, vlanID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *VLANResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state vlanModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	httpResp, err := r.client.Client.IpamAPI.
+		IpamVlansDestroy(ctx, state.ID.ValueString()).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to delete vlan", httpErr(err, httpResp))
+		return
+	}
+}
+
+func (r *VLANResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	v, httpResp, err := r.client.Client.IpamAPI.
+		IpamVlansRetrieve(ctx, id).
+		Execute()
+	if err != nil {
+		diags.AddError("failed to read vlan", httpErr(err, httpResp))
+		return vlanModel{}, diags
+	}
+
+	var m vlanModel
+	m.ID = types.StringValue(id)
+	m.Name = types.StringValue(v.Name)
+	m.Vid = types.Int64Value(int64(v.Vid))
+
+	if v.Description != nil {
+		m.Description = types.StringValue(*v.Description)
+	} else {
+		m.Description = types.StringValue("")
+	}
+
+	vlanGroupID := ""
+	if v.VlanGroup.IsSet() {
+		if vg := v.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
+			vlanGroupID = *vg.Id.String
+		}
+	}
+	m.VLANGroupID = types.StringValue(vlanGroupID)
+
+	statusName := ""
+	if v.Status.Id != nil && v.Status.Id.String != nil && *v.Status.Id.String != "" {
+		if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *v.Status.Id.String); err == nil {
+			statusName = n
+		}
+	}
+	m.Status = types.StringValue(statusName)
+
+	tenantID := ""
+	if v.Tenant.IsSet() {
+		t := v.Tenant.Get()
+		if t != nil && t.Id != nil && t.Id.String != nil {
+			tenantID = *t.Id.String
+		}
+	}
+	m.TenantID = types.StringValue(tenantID)
+
+	roleID := ""
+	if v.Role.IsSet() {
+		rr := v.Role.Get()
+		if rr != nil && rr.Id != nil && rr.Id.String != nil {
+			roleID = *rr.Id.String
+		}
+	}
+	m.RoleID = types.StringValue(roleID)
+
+	if len(v.Tags) > 0 {
+		vals := make([]attr.Value, 0, len(v.Tags))
+		for _, t := range v.Tags {
+			if t.Id != nil && t.Id.String != nil {
+				vals = append(vals, types.StringValue(*t.Id.String))
+			}
+		}
+		m.TagsIDs = types.ListValueMust(types.StringType, vals)
+	} else {
+		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+	}
+
+	if v.Created.IsSet() && v.Created.Get() != nil {
+		m.Created = types.StringValue(v.Created.Get().Format(time.RFC3339))
+	} else {
+		m.Created = types.StringNull()
+	}
+
+	if v.PrefixCount != nil {
+		m.PrefixCount = types.Int64Value(int64(*v.PrefixCount))
+	} else {
+		m.PrefixCount = types.Int64Value(0)
+	}
+
+	m.URL = types.StringValue(v.Url)
+	m.NaturalSlug = types.StringValue(v.NaturalSlug)
+	m.NotesURL = types.StringValue(v.NotesUrl)
+
+	tflog.Debug(ctx, "read VLAN", map[string]any{"id": id})
+	return m, diags
+}
