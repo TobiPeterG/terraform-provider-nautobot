@@ -219,7 +219,11 @@ func TestAccVMInterfaceResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Access"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVMInterfaceVLAN),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.0", testVMInterfaceIPAddress),
+					resource.TestCheckTypeSetElemAttr(
+						vmInterfaceResourceName,
+						"ip_addresses.*",
+						testVMInterfaceIPAddress,
+					),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "tags_ids.#", "0"),
 					resource.TestCheckResourceAttrSet(vmInterfaceResourceName, "id"),
@@ -255,7 +259,11 @@ func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Access"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVMInterfaceVLAN),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.0", testVMInterfaceIPAddress),
+					resource.TestCheckTypeSetElemAttr(
+						vmInterfaceResourceName,
+						"ip_addresses.*",
+						testVMInterfaceIPAddress,
+					),
 				),
 			},
 			{
@@ -276,7 +284,11 @@ func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Tagged"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVMInterfaceVLAN),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.0", testVMInterfaceIPAddress),
+					resource.TestCheckTypeSetElemAttr(
+						vmInterfaceResourceName,
+						"ip_addresses.*",
+						testVMInterfaceIPAddress,
+					),
 				),
 			},
 			{

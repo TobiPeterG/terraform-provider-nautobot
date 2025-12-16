@@ -18,6 +18,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -47,7 +49,7 @@ type vmInterfaceModel struct {
 	VirtualMachineID types.String `tfsdk:"virtual_machine_id"`
 	UntaggedVlanID   types.String `tfsdk:"untagged_vlan_id"`
 	TagsIDs          types.List   `tfsdk:"tags_ids"`
-	IPAddresses      types.List   `tfsdk:"ip_addresses"`
+	IPAddresses      types.Set    `tfsdk:"ip_addresses"`
 	Created          types.String `tfsdk:"created"`
 }
 
@@ -146,14 +148,14 @@ func (r *VMInterfaceResource) Schema(_ context.Context, _ resource.SchemaRequest
 					listplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"ip_addresses": rschema.ListAttribute{
+			"ip_addresses": rschema.SetAttribute{
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				Default:     setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
 				Description: "List of IP address IDs to assign to the VM interface.",
-				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.Set{
+					setplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"created": rschema.StringAttribute{
@@ -649,9 +651,9 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 					vals = append(vals, types.StringValue(*rel.IpAddress.Id.String))
 				}
 			}
-			m.IPAddresses = types.ListValueMust(types.StringType, vals)
+			m.IPAddresses = types.SetValueMust(types.StringType, vals)
 		} else {
-			m.IPAddresses = types.ListValueMust(types.StringType, []attr.Value{})
+			m.IPAddresses = types.SetValueMust(types.StringType, []attr.Value{})
 		}
 	}
 
