@@ -115,53 +115,66 @@ func (d *ClusterTypesDataSource) Read(ctx context.Context, req datasource.ReadRe
 
 	c := d.client.Client
 
-	rsp, httpResp, err := c.VirtualizationAPI.
-		VirtualizationClusterTypesList(ctx).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to get cluster types list",
-			httpErr(err, httpResp),
-		)
-		return
-	}
+	const pageLimit int32 = 200
+	var offset int32 = 0
 
-	results := rsp.Results
-	state.ClusterTypes = make([]clusterTypeItemModel, 0, len(results))
+	state.ClusterTypes = make([]clusterTypeItemModel, 0)
 
-	for _, ct := range results {
-		var item clusterTypeItemModel
-
-		idStr := ""
-		if ct.Id != nil {
-			idStr = *ct.Id
-		}
-		item.ID = types.StringValue(idStr)
-
-		createdStr := ""
-		if ct.Created.IsSet() && ct.Created.Get() != nil {
-			createdStr = ct.Created.Get().Format(time.RFC3339)
-		}
-		lastUpdatedStr := ""
-		if ct.LastUpdated.IsSet() && ct.LastUpdated.Get() != nil {
-			lastUpdatedStr = ct.LastUpdated.Get().Format(time.RFC3339)
+	for {
+		rsp, httpResp, err := c.VirtualizationAPI.
+			VirtualizationClusterTypesList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get cluster types list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		descStr := ""
-		if ct.Description != nil {
-			descStr = *ct.Description
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
 
-		item.Display = types.StringValue(ct.Display)
-		item.URL = types.StringValue(ct.Url)
-		item.NaturalSlug = types.StringValue(ct.NaturalSlug)
-		item.Name = types.StringValue(ct.Name)
-		item.Description = types.StringValue(descStr)
-		item.Created = types.StringValue(createdStr)
-		item.LastUpdated = types.StringValue(lastUpdatedStr)
-		item.NotesURL = types.StringValue(ct.NotesUrl)
+		for _, ct := range results {
+			var item clusterTypeItemModel
 
-		state.ClusterTypes = append(state.ClusterTypes, item)
+			idStr := ""
+			if ct.Id != nil {
+				idStr = *ct.Id
+			}
+			item.ID = types.StringValue(idStr)
+
+			createdStr := ""
+			if ct.Created.IsSet() && ct.Created.Get() != nil {
+				createdStr = ct.Created.Get().Format(time.RFC3339)
+			}
+			lastUpdatedStr := ""
+			if ct.LastUpdated.IsSet() && ct.LastUpdated.Get() != nil {
+				lastUpdatedStr = ct.LastUpdated.Get().Format(time.RFC3339)
+			}
+
+			descStr := ""
+			if ct.Description != nil {
+				descStr = *ct.Description
+			}
+
+			item.Display = types.StringValue(ct.Display)
+			item.URL = types.StringValue(ct.Url)
+			item.NaturalSlug = types.StringValue(ct.NaturalSlug)
+			item.Name = types.StringValue(ct.Name)
+			item.Description = types.StringValue(descStr)
+			item.Created = types.StringValue(createdStr)
+			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.NotesURL = types.StringValue(ct.NotesUrl)
+
+			state.ClusterTypes = append(state.ClusterTypes, item)
+		}
+
+		offset += pageLimit
 	}
 
 	tflog.Debug(ctx, "read cluster types", map[string]any{"count": len(state.ClusterTypes)})

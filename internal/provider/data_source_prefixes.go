@@ -183,133 +183,146 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 	c := d.client.Client
 	token := d.client.Token
 
-	rsp, httpResp, err := c.IpamAPI.
-		IpamPrefixesList(ctx).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to get prefixes list",
-			httpErr(err, httpResp),
-		)
-		return
-	}
+	const pageLimit int32 = 200
+	var offset int32 = 0
 
-	results := rsp.Results
-	state.Prefixes = make([]prefixItemModel, 0, len(results))
+	state.Prefixes = make([]prefixItemModel, 0)
 
-	for _, prefix := range results {
-		var item prefixItemModel
-
-		idStr := ""
-		if prefix.Id != nil {
-			idStr = *prefix.Id
-		}
-		item.ID = types.StringValue(idStr)
-
-		createdStr := ""
-		if prefix.Created.IsSet() && prefix.Created.Get() != nil {
-			createdStr = prefix.Created.Get().Format(time.RFC3339)
-		}
-		lastUpdatedStr := ""
-		if prefix.LastUpdated.IsSet() && prefix.LastUpdated.Get() != nil {
-			lastUpdatedStr = prefix.LastUpdated.Get().Format(time.RFC3339)
+	for {
+		rsp, httpResp, err := c.IpamAPI.
+			IpamPrefixesList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get prefixes list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		descStr := ""
-		if prefix.Description != nil {
-			descStr = *prefix.Description
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
 
-		item.Prefix = types.StringValue(prefix.Prefix)
-		item.Description = types.StringValue(descStr)
-		item.Created = types.StringValue(createdStr)
-		item.LastUpdated = types.StringValue(lastUpdatedStr)
+		for _, prefix := range results {
+			var item prefixItemModel
 
-		statusName := ""
-		if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
-			if statusID := *prefix.Status.Id.String; statusID != "" {
-				if name, err := getStatusName(ctx, c, token, statusID); err == nil {
-					statusName = name
+			idStr := ""
+			if prefix.Id != nil {
+				idStr = *prefix.Id
+			}
+			item.ID = types.StringValue(idStr)
+
+			createdStr := ""
+			if prefix.Created.IsSet() && prefix.Created.Get() != nil {
+				createdStr = prefix.Created.Get().Format(time.RFC3339)
+			}
+			lastUpdatedStr := ""
+			if prefix.LastUpdated.IsSet() && prefix.LastUpdated.Get() != nil {
+				lastUpdatedStr = prefix.LastUpdated.Get().Format(time.RFC3339)
+			}
+
+			descStr := ""
+			if prefix.Description != nil {
+				descStr = *prefix.Description
+			}
+
+			item.Prefix = types.StringValue(prefix.Prefix)
+			item.Description = types.StringValue(descStr)
+			item.Created = types.StringValue(createdStr)
+			item.LastUpdated = types.StringValue(lastUpdatedStr)
+
+			statusName := ""
+			if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
+				if statusID := *prefix.Status.Id.String; statusID != "" {
+					if name, err := getStatusName(ctx, c, token, statusID); err == nil {
+						statusName = name
+					}
 				}
 			}
-		}
-		item.Status = types.StringValue(statusName)
+			item.Status = types.StringValue(statusName)
 
-		parentID := ""
-		if prefix.Parent.IsSet() {
-			if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
-				parentID = *parent.Id.String
-			}
-		}
-		item.ParentID = types.StringValue(parentID)
-
-		tenantID := ""
-		if prefix.Tenant.IsSet() {
-			if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-				tenantID = *tenant.Id.String
-			}
-		}
-		item.TenantID = types.StringValue(tenantID)
-
-		roleID := ""
-		if prefix.Role.IsSet() {
-			if role := prefix.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-				roleID = *role.Id.String
-			}
-		}
-		item.RoleID = types.StringValue(roleID)
-
-		rirID := ""
-		if prefix.Rir.IsSet() {
-			if rir := prefix.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
-				rirID = *rir.Id.String
-			}
-		}
-		item.RirID = types.StringValue(rirID)
-
-		namespaceID := ""
-		if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
-			namespaceID = *prefix.Namespace.Id.String
-		}
-		item.NamespaceID = types.StringValue(namespaceID)
-
-		vlanID := ""
-		if prefix.Vlan.IsSet() {
-			if vlan := prefix.Vlan.Get(); vlan != nil && vlan.Id != nil && vlan.Id.String != nil {
-				vlanID = *vlan.Id.String
-			}
-		}
-		item.VLANID = types.StringValue(vlanID)
-
-		item.Network = types.StringValue(prefix.Network)
-		item.Broadcast = types.StringValue(prefix.Broadcast)
-		item.PrefixLength = types.Int64Value(int64(prefix.PrefixLength))
-		item.IPVersion = types.Int64Value(int64(prefix.IpVersion))
-
-		dateAllocatedStr := ""
-		if prefix.DateAllocated.IsSet() && prefix.DateAllocated.Get() != nil {
-			dateAllocatedStr = prefix.DateAllocated.Get().Format(time.RFC3339)
-		}
-		item.DateAllocated = types.StringValue(dateAllocatedStr)
-
-		if len(prefix.Tags) > 0 {
-			tagVals := make([]attr.Value, 0, len(prefix.Tags))
-			for _, tag := range prefix.Tags {
-				if tag.Id != nil && tag.Id.String != nil {
-					tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+			parentID := ""
+			if prefix.Parent.IsSet() {
+				if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
+					parentID = *parent.Id.String
 				}
 			}
-			item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
-		} else {
-			item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			item.ParentID = types.StringValue(parentID)
+
+			tenantID := ""
+			if prefix.Tenant.IsSet() {
+				if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
+					tenantID = *tenant.Id.String
+				}
+			}
+			item.TenantID = types.StringValue(tenantID)
+
+			roleID := ""
+			if prefix.Role.IsSet() {
+				if role := prefix.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
+					roleID = *role.Id.String
+				}
+			}
+			item.RoleID = types.StringValue(roleID)
+
+			rirID := ""
+			if prefix.Rir.IsSet() {
+				if rir := prefix.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
+					rirID = *rir.Id.String
+				}
+			}
+			item.RirID = types.StringValue(rirID)
+
+			namespaceID := ""
+			if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
+				namespaceID = *prefix.Namespace.Id.String
+			}
+			item.NamespaceID = types.StringValue(namespaceID)
+
+			vlanID := ""
+			if prefix.Vlan.IsSet() {
+				if vlan := prefix.Vlan.Get(); vlan != nil && vlan.Id != nil && vlan.Id.String != nil {
+					vlanID = *vlan.Id.String
+				}
+			}
+			item.VLANID = types.StringValue(vlanID)
+
+			item.Network = types.StringValue(prefix.Network)
+			item.Broadcast = types.StringValue(prefix.Broadcast)
+			item.PrefixLength = types.Int64Value(int64(prefix.PrefixLength))
+			item.IPVersion = types.Int64Value(int64(prefix.IpVersion))
+
+			dateAllocatedStr := ""
+			if prefix.DateAllocated.IsSet() && prefix.DateAllocated.Get() != nil {
+				dateAllocatedStr = prefix.DateAllocated.Get().Format(time.RFC3339)
+			}
+			item.DateAllocated = types.StringValue(dateAllocatedStr)
+
+			if len(prefix.Tags) > 0 {
+				tagVals := make([]attr.Value, 0, len(prefix.Tags))
+				for _, tag := range prefix.Tags {
+					if tag.Id != nil && tag.Id.String != nil {
+						tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+					}
+				}
+				item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+			} else {
+				item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			}
+
+			item.Display = types.StringValue(prefix.Display)
+			item.URL = types.StringValue(prefix.Url)
+			item.NaturalSlug = types.StringValue(prefix.NaturalSlug)
+			item.NotesURL = types.StringValue(prefix.NotesUrl)
+
+			state.Prefixes = append(state.Prefixes, item)
 		}
 
-		item.Display = types.StringValue(prefix.Display)
-		item.URL = types.StringValue(prefix.Url)
-		item.NaturalSlug = types.StringValue(prefix.NaturalSlug)
-		item.NotesURL = types.StringValue(prefix.NotesUrl)
-
-		state.Prefixes = append(state.Prefixes, item)
+		offset += pageLimit
 	}
 
 	tflog.Debug(ctx, "read prefixes", map[string]any{"count": len(state.Prefixes)})

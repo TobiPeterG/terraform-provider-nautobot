@@ -115,53 +115,66 @@ func (d *ManufacturersDataSource) Read(ctx context.Context, req datasource.ReadR
 
 	c := d.client.Client
 
-	rsp, httpResp, err := c.DcimAPI.
-		DcimManufacturersList(ctx).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to get manufacturers list",
-			httpErr(err, httpResp),
-		)
-		return
-	}
+	const pageLimit int32 = 200
+	var offset int32 = 0
 
-	results := rsp.Results
-	state.Manufacturers = make([]manufacturerItemModel, 0, len(results))
+	state.Manufacturers = make([]manufacturerItemModel, 0)
 
-	for _, m := range results {
-		var item manufacturerItemModel
-
-		idStr := ""
-		if m.Id != nil {
-			idStr = *m.Id
-		}
-		item.ID = types.StringValue(idStr)
-
-		createdStr := ""
-		if m.Created.IsSet() && m.Created.Get() != nil {
-			createdStr = m.Created.Get().Format(time.RFC3339)
-		}
-		lastUpdatedStr := ""
-		if m.LastUpdated.IsSet() && m.LastUpdated.Get() != nil {
-			lastUpdatedStr = m.LastUpdated.Get().Format(time.RFC3339)
+	for {
+		rsp, httpResp, err := c.DcimAPI.
+			DcimManufacturersList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get manufacturers list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		descStr := ""
-		if m.Description != nil {
-			descStr = *m.Description
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
 
-		item.Display = types.StringValue(m.Display)
-		item.URL = types.StringValue(m.Url)
-		item.NaturalSlug = types.StringValue(m.NaturalSlug)
-		item.Name = types.StringValue(m.Name)
-		item.Description = types.StringValue(descStr)
-		item.Created = types.StringValue(createdStr)
-		item.LastUpdated = types.StringValue(lastUpdatedStr)
-		item.NotesURL = types.StringValue(m.NotesUrl)
+		for _, m := range results {
+			var item manufacturerItemModel
 
-		state.Manufacturers = append(state.Manufacturers, item)
+			idStr := ""
+			if m.Id != nil {
+				idStr = *m.Id
+			}
+			item.ID = types.StringValue(idStr)
+
+			createdStr := ""
+			if m.Created.IsSet() && m.Created.Get() != nil {
+				createdStr = m.Created.Get().Format(time.RFC3339)
+			}
+			lastUpdatedStr := ""
+			if m.LastUpdated.IsSet() && m.LastUpdated.Get() != nil {
+				lastUpdatedStr = m.LastUpdated.Get().Format(time.RFC3339)
+			}
+
+			descStr := ""
+			if m.Description != nil {
+				descStr = *m.Description
+			}
+
+			item.Display = types.StringValue(m.Display)
+			item.URL = types.StringValue(m.Url)
+			item.NaturalSlug = types.StringValue(m.NaturalSlug)
+			item.Name = types.StringValue(m.Name)
+			item.Description = types.StringValue(descStr)
+			item.Created = types.StringValue(createdStr)
+			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.NotesURL = types.StringValue(m.NotesUrl)
+
+			state.Manufacturers = append(state.Manufacturers, item)
+		}
+
+		offset += pageLimit
 	}
 
 	tflog.Debug(ctx, "read manufacturers", map[string]any{"count": len(state.Manufacturers)})

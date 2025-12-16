@@ -122,98 +122,111 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	c := d.client.Client
 
-	rsp, httpResp, err := c.VirtualizationAPI.
-		VirtualizationClustersList(ctx).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to get clusters list",
-			httpErr(err, httpResp),
-		)
-		return
-	}
+	const pageLimit int32 = 200
+	var offset int32 = 0
 
-	results := rsp.Results
-	state.Clusters = make([]clusterItemModel, 0, len(results))
+	state.Clusters = make([]clusterItemModel, 0)
 
-	for _, cluster := range results {
-		var item clusterItemModel
-
-		idStr := ""
-		if cluster.Id != nil {
-			idStr = *cluster.Id
-		}
-		item.ID = types.StringValue(idStr)
-
-		item.Name = types.StringValue(cluster.Name)
-
-		commentsStr := ""
-		if cluster.Comments != nil {
-			commentsStr = *cluster.Comments
-		}
-		item.Comments = types.StringValue(commentsStr)
-
-		createdStr := ""
-		if cluster.Created.IsSet() && cluster.Created.Get() != nil {
-			createdStr = cluster.Created.Get().Format(time.RFC3339)
-		}
-		item.Created = types.StringValue(createdStr)
-
-		lastUpdatedStr := ""
-		if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
-			lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
-		}
-		item.LastUpdated = types.StringValue(lastUpdatedStr)
-
-		if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
-			item.ClusterTypeID = types.StringValue(*cluster.ClusterType.Id.String)
-		} else {
-			item.ClusterTypeID = types.StringValue("")
+	for {
+		rsp, httpResp, err := c.VirtualizationAPI.
+			VirtualizationClustersList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get clusters list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		if cluster.ClusterGroup.IsSet() {
-			if cg := cluster.ClusterGroup.Get(); cg != nil && cg.Id != nil && cg.Id.String != nil {
-				item.ClusterGroupID = types.StringValue(*cg.Id.String)
+		results := rsp.Results
+		if len(results) == 0 {
+			break
+		}
+
+		for _, cluster := range results {
+			var item clusterItemModel
+
+			idStr := ""
+			if cluster.Id != nil {
+				idStr = *cluster.Id
+			}
+			item.ID = types.StringValue(idStr)
+
+			item.Name = types.StringValue(cluster.Name)
+
+			commentsStr := ""
+			if cluster.Comments != nil {
+				commentsStr = *cluster.Comments
+			}
+			item.Comments = types.StringValue(commentsStr)
+
+			createdStr := ""
+			if cluster.Created.IsSet() && cluster.Created.Get() != nil {
+				createdStr = cluster.Created.Get().Format(time.RFC3339)
+			}
+			item.Created = types.StringValue(createdStr)
+
+			lastUpdatedStr := ""
+			if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
+				lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
+			}
+			item.LastUpdated = types.StringValue(lastUpdatedStr)
+
+			if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
+				item.ClusterTypeID = types.StringValue(*cluster.ClusterType.Id.String)
+			} else {
+				item.ClusterTypeID = types.StringValue("")
+			}
+
+			if cluster.ClusterGroup.IsSet() {
+				if cg := cluster.ClusterGroup.Get(); cg != nil && cg.Id != nil && cg.Id.String != nil {
+					item.ClusterGroupID = types.StringValue(*cg.Id.String)
+				} else {
+					item.ClusterGroupID = types.StringValue("")
+				}
 			} else {
 				item.ClusterGroupID = types.StringValue("")
 			}
-		} else {
-			item.ClusterGroupID = types.StringValue("")
-		}
 
-		if cluster.Tenant.IsSet() {
-			if t := cluster.Tenant.Get(); t != nil && t.Id != nil && t.Id.String != nil {
-				item.TenantID = types.StringValue(*t.Id.String)
+			if cluster.Tenant.IsSet() {
+				if t := cluster.Tenant.Get(); t != nil && t.Id != nil && t.Id.String != nil {
+					item.TenantID = types.StringValue(*t.Id.String)
+				} else {
+					item.TenantID = types.StringValue("")
+				}
 			} else {
 				item.TenantID = types.StringValue("")
 			}
-		} else {
-			item.TenantID = types.StringValue("")
-		}
 
-		if cluster.Location.IsSet() {
-			if l := cluster.Location.Get(); l != nil && l.Id != nil && l.Id.String != nil {
-				item.LocationID = types.StringValue(*l.Id.String)
+			if cluster.Location.IsSet() {
+				if l := cluster.Location.Get(); l != nil && l.Id != nil && l.Id.String != nil {
+					item.LocationID = types.StringValue(*l.Id.String)
+				} else {
+					item.LocationID = types.StringValue("")
+				}
 			} else {
 				item.LocationID = types.StringValue("")
 			}
-		} else {
-			item.LocationID = types.StringValue("")
-		}
 
-		if len(cluster.Tags) > 0 {
-			tagVals := make([]attr.Value, 0, len(cluster.Tags))
-			for _, tag := range cluster.Tags {
-				if tag.Id != nil && tag.Id.String != nil {
-					tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+			if len(cluster.Tags) > 0 {
+				tagVals := make([]attr.Value, 0, len(cluster.Tags))
+				for _, tag := range cluster.Tags {
+					if tag.Id != nil && tag.Id.String != nil {
+						tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+					}
 				}
+				item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+			} else {
+				item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 			}
-			item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
-		} else {
-			item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+
+			state.Clusters = append(state.Clusters, item)
 		}
 
-		state.Clusters = append(state.Clusters, item)
+		offset += pageLimit
 	}
 
 	tflog.Debug(ctx, "read clusters", map[string]any{"count": len(state.Clusters)})

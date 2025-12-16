@@ -153,108 +153,121 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	c := d.client.Client
 	token := d.client.Token
 
-	rsp, httpResp, err := c.IpamAPI.
-		IpamVlansList(ctx).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to get VLANs list",
-			httpErr(err, httpResp),
-		)
-		return
-	}
+	const pageLimit int32 = 200
+	var offset int32 = 0
 
-	results := rsp.Results
-	state.VLANs = make([]vlanItemModel, 0, len(results))
+	state.VLANs = make([]vlanItemModel, 0)
 
-	for _, vlan := range results {
-		var item vlanItemModel
-
-		idStr := ""
-		if vlan.Id != nil {
-			idStr = *vlan.Id
-		}
-		item.ID = types.StringValue(idStr)
-
-		createdStr := ""
-		if vlan.Created.IsSet() && vlan.Created.Get() != nil {
-			createdStr = vlan.Created.Get().Format(time.RFC3339)
-		}
-		lastUpdatedStr := ""
-		if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
-			lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
+	for {
+		rsp, httpResp, err := c.IpamAPI.
+			IpamVlansList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get VLANs list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		descStr := ""
-		if vlan.Description != nil {
-			descStr = *vlan.Description
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
 
-		item.Vid = types.Int64Value(int64(vlan.Vid))
-		item.Name = types.StringValue(vlan.Name)
-		item.Description = types.StringValue(descStr)
-		item.Created = types.StringValue(createdStr)
-		item.LastUpdated = types.StringValue(lastUpdatedStr)
+		for _, vlan := range results {
+			var item vlanItemModel
 
-		vlanGroupID := ""
-		if vlan.VlanGroup.IsSet() {
-			if vg := vlan.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
-				vlanGroupID = *vg.Id.String
+			idStr := ""
+			if vlan.Id != nil {
+				idStr = *vlan.Id
 			}
-		}
-		item.VLANGroupID = types.StringValue(vlanGroupID)
+			item.ID = types.StringValue(idStr)
 
-		statusName := ""
-		if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
-			statusID := *vlan.Status.Id.String
-			if statusID != "" {
-				if name, err := getStatusName(ctx, c, token, statusID); err == nil {
-					statusName = name
+			createdStr := ""
+			if vlan.Created.IsSet() && vlan.Created.Get() != nil {
+				createdStr = vlan.Created.Get().Format(time.RFC3339)
+			}
+			lastUpdatedStr := ""
+			if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
+				lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
+			}
+
+			descStr := ""
+			if vlan.Description != nil {
+				descStr = *vlan.Description
+			}
+
+			item.Vid = types.Int64Value(int64(vlan.Vid))
+			item.Name = types.StringValue(vlan.Name)
+			item.Description = types.StringValue(descStr)
+			item.Created = types.StringValue(createdStr)
+			item.LastUpdated = types.StringValue(lastUpdatedStr)
+
+			vlanGroupID := ""
+			if vlan.VlanGroup.IsSet() {
+				if vg := vlan.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
+					vlanGroupID = *vg.Id.String
 				}
 			}
-		}
-		item.Status = types.StringValue(statusName)
+			item.VLANGroupID = types.StringValue(vlanGroupID)
 
-		tenantID := ""
-		if vlan.Tenant.IsSet() {
-			if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-				tenantID = *tenant.Id.String
-			}
-		}
-		item.TenantID = types.StringValue(tenantID)
-
-		roleID := ""
-		if vlan.Role.IsSet() {
-			if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-				roleID = *role.Id.String
-			}
-		}
-		item.RoleID = types.StringValue(roleID)
-
-		if len(vlan.Tags) > 0 {
-			tagVals := make([]attr.Value, 0, len(vlan.Tags))
-			for _, tag := range vlan.Tags {
-				if tag.Id != nil && tag.Id.String != nil {
-					tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+			statusName := ""
+			if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
+				statusID := *vlan.Status.Id.String
+				if statusID != "" {
+					if name, err := getStatusName(ctx, c, token, statusID); err == nil {
+						statusName = name
+					}
 				}
 			}
-			item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
-		} else {
-			item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			item.Status = types.StringValue(statusName)
+
+			tenantID := ""
+			if vlan.Tenant.IsSet() {
+				if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
+					tenantID = *tenant.Id.String
+				}
+			}
+			item.TenantID = types.StringValue(tenantID)
+
+			roleID := ""
+			if vlan.Role.IsSet() {
+				if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
+					roleID = *role.Id.String
+				}
+			}
+			item.RoleID = types.StringValue(roleID)
+
+			if len(vlan.Tags) > 0 {
+				tagVals := make([]attr.Value, 0, len(vlan.Tags))
+				for _, tag := range vlan.Tags {
+					if tag.Id != nil && tag.Id.String != nil {
+						tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+					}
+				}
+				item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+			} else {
+				item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			}
+
+			if vlan.PrefixCount != nil {
+				item.PrefixCount = types.Int64Value(int64(*vlan.PrefixCount))
+			} else {
+				item.PrefixCount = types.Int64Value(0)
+			}
+
+			item.Display = types.StringValue(vlan.Display)
+			item.URL = types.StringValue(vlan.Url)
+			item.NaturalSlug = types.StringValue(vlan.NaturalSlug)
+			item.NotesURL = types.StringValue(vlan.NotesUrl)
+
+			state.VLANs = append(state.VLANs, item)
 		}
 
-		if vlan.PrefixCount != nil {
-			item.PrefixCount = types.Int64Value(int64(*vlan.PrefixCount))
-		} else {
-			item.PrefixCount = types.Int64Value(0)
-		}
-
-		item.Display = types.StringValue(vlan.Display)
-		item.URL = types.StringValue(vlan.Url)
-		item.NaturalSlug = types.StringValue(vlan.NaturalSlug)
-		item.NotesURL = types.StringValue(vlan.NotesUrl)
-
-		state.VLANs = append(state.VLANs, item)
+		offset += pageLimit
 	}
 
 	tflog.Debug(ctx, "read VLANs", map[string]any{"count": len(state.VLANs)})

@@ -153,136 +153,149 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 	c := d.client.Client
 	token := d.client.Token
 
-	rsp, httpResp, err := c.VirtualizationAPI.
-		VirtualizationVirtualMachinesList(ctx).
-		Execute()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to get virtual machines list",
-			httpErr(err, httpResp),
-		)
-		return
-	}
+	const pageLimit int32 = 200
+	var offset int32 = 0
 
-	results := rsp.Results
-	state.VirtualMachines = make([]virtualMachineItemModel, 0, len(results))
+	state.VirtualMachines = make([]virtualMachineItemModel, 0)
 
-	for _, vm := range results {
-		var item virtualMachineItemModel
-
-		idStr := ""
-		if vm.Id != nil {
-			idStr = *vm.Id
+	for {
+		rsp, httpResp, err := c.VirtualizationAPI.
+			VirtualizationVirtualMachinesList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get virtual machines list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
-		item.ID = types.StringValue(idStr)
 
-		createdStr := ""
-		if vm.Created.IsSet() && vm.Created.Get() != nil {
-			createdStr = vm.Created.Get().Format(time.RFC3339)
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
-		lastUpdatedStr := ""
-		if vm.LastUpdated.IsSet() && vm.LastUpdated.Get() != nil {
-			lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
-		}
-		item.Created = types.StringValue(createdStr)
-		item.LastUpdated = types.StringValue(lastUpdatedStr)
 
-		item.Name = types.StringValue(vm.Name)
+		for _, vm := range results {
+			var item virtualMachineItemModel
 
-		vcpusVal := int64(0)
-		if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
-			vcpusVal = int64(*vm.Vcpus.Get())
-		}
-		item.Vcpus = types.Int64Value(vcpusVal)
+			idStr := ""
+			if vm.Id != nil {
+				idStr = *vm.Id
+			}
+			item.ID = types.StringValue(idStr)
 
-		memoryVal := int64(0)
-		if vm.Memory.IsSet() && vm.Memory.Get() != nil {
-			memoryVal = int64(*vm.Memory.Get())
-		}
-		item.Memory = types.Int64Value(memoryVal)
+			createdStr := ""
+			if vm.Created.IsSet() && vm.Created.Get() != nil {
+				createdStr = vm.Created.Get().Format(time.RFC3339)
+			}
+			lastUpdatedStr := ""
+			if vm.LastUpdated.IsSet() && vm.LastUpdated.Get() != nil {
+				lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
+			}
+			item.Created = types.StringValue(createdStr)
+			item.LastUpdated = types.StringValue(lastUpdatedStr)
 
-		diskVal := int64(0)
-		if vm.Disk.IsSet() && vm.Disk.Get() != nil {
-			diskVal = int64(*vm.Disk.Get())
-		}
-		item.Disk = types.Int64Value(diskVal)
+			item.Name = types.StringValue(vm.Name)
 
-		commentsStr := ""
-		if vm.Comments != nil {
-			commentsStr = *vm.Comments
-		}
-		item.Comments = types.StringValue(commentsStr)
+			vcpusVal := int64(0)
+			if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
+				vcpusVal = int64(*vm.Vcpus.Get())
+			}
+			item.Vcpus = types.Int64Value(vcpusVal)
 
-		clusterID := ""
-		if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
-			clusterID = *vm.Cluster.Id.String
-		}
-		item.ClusterID = types.StringValue(clusterID)
+			memoryVal := int64(0)
+			if vm.Memory.IsSet() && vm.Memory.Get() != nil {
+				memoryVal = int64(*vm.Memory.Get())
+			}
+			item.Memory = types.Int64Value(memoryVal)
 
-		statusName := ""
-		if vm.Status.Id != nil && vm.Status.Id.String != nil {
-			statusID := *vm.Status.Id.String
-			if statusID != "" {
-				if n, err := getStatusName(ctx, c, token, statusID); err == nil {
-					statusName = n
+			diskVal := int64(0)
+			if vm.Disk.IsSet() && vm.Disk.Get() != nil {
+				diskVal = int64(*vm.Disk.Get())
+			}
+			item.Disk = types.Int64Value(diskVal)
+
+			commentsStr := ""
+			if vm.Comments != nil {
+				commentsStr = *vm.Comments
+			}
+			item.Comments = types.StringValue(commentsStr)
+
+			clusterID := ""
+			if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
+				clusterID = *vm.Cluster.Id.String
+			}
+			item.ClusterID = types.StringValue(clusterID)
+
+			statusName := ""
+			if vm.Status.Id != nil && vm.Status.Id.String != nil {
+				statusID := *vm.Status.Id.String
+				if statusID != "" {
+					if n, err := getStatusName(ctx, c, token, statusID); err == nil {
+						statusName = n
+					}
 				}
 			}
-		}
-		item.Status = types.StringValue(statusName)
+			item.Status = types.StringValue(statusName)
 
-		tenantID := ""
-		if vm.Tenant.IsSet() {
-			if tenant := vm.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-				tenantID = *tenant.Id.String
-			}
-		}
-		item.TenantID = types.StringValue(tenantID)
-
-		platformID := ""
-		if vm.Platform.IsSet() {
-			if p := vm.Platform.Get(); p != nil && p.Id != nil && p.Id.String != nil {
-				platformID = *p.Id.String
-			}
-		}
-		item.PlatformID = types.StringValue(platformID)
-
-		roleID := ""
-		if vm.Role.IsSet() {
-			if r := vm.Role.Get(); r != nil && r.Id != nil && r.Id.String != nil {
-				roleID = *r.Id.String
-			}
-		}
-		item.RoleID = types.StringValue(roleID)
-
-		primaryIPv4ID := ""
-		if vm.PrimaryIp4.IsSet() {
-			if ip4 := vm.PrimaryIp4.Get(); ip4 != nil && ip4.Id != nil && ip4.Id.String != nil {
-				primaryIPv4ID = *ip4.Id.String
-			}
-		}
-		item.PrimaryIP4ID = types.StringValue(primaryIPv4ID)
-
-		primaryIPv6ID := ""
-		if vm.PrimaryIp6.IsSet() {
-			if ip6 := vm.PrimaryIp6.Get(); ip6 != nil && ip6.Id != nil && ip6.Id.String != nil {
-				primaryIPv6ID = *ip6.Id.String
-			}
-		}
-		item.PrimaryIP6ID = types.StringValue(primaryIPv6ID)
-
-		if len(vm.Tags) > 0 {
-			tagVals := make([]attr.Value, 0, len(vm.Tags))
-			for _, tag := range vm.Tags {
-				if tag.Id != nil && tag.Id.String != nil {
-					tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+			tenantID := ""
+			if vm.Tenant.IsSet() {
+				if tenant := vm.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
+					tenantID = *tenant.Id.String
 				}
 			}
-			item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
-		} else {
-			item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			item.TenantID = types.StringValue(tenantID)
+
+			platformID := ""
+			if vm.Platform.IsSet() {
+				if p := vm.Platform.Get(); p != nil && p.Id != nil && p.Id.String != nil {
+					platformID = *p.Id.String
+				}
+			}
+			item.PlatformID = types.StringValue(platformID)
+
+			roleID := ""
+			if vm.Role.IsSet() {
+				if r := vm.Role.Get(); r != nil && r.Id != nil && r.Id.String != nil {
+					roleID = *r.Id.String
+				}
+			}
+			item.RoleID = types.StringValue(roleID)
+
+			primaryIPv4ID := ""
+			if vm.PrimaryIp4.IsSet() {
+				if ip4 := vm.PrimaryIp4.Get(); ip4 != nil && ip4.Id != nil && ip4.Id.String != nil {
+					primaryIPv4ID = *ip4.Id.String
+				}
+			}
+			item.PrimaryIP4ID = types.StringValue(primaryIPv4ID)
+
+			primaryIPv6ID := ""
+			if vm.PrimaryIp6.IsSet() {
+				if ip6 := vm.PrimaryIp6.Get(); ip6 != nil && ip6.Id != nil && ip6.Id.String != nil {
+					primaryIPv6ID = *ip6.Id.String
+				}
+			}
+			item.PrimaryIP6ID = types.StringValue(primaryIPv6ID)
+
+			if len(vm.Tags) > 0 {
+				tagVals := make([]attr.Value, 0, len(vm.Tags))
+				for _, tag := range vm.Tags {
+					if tag.Id != nil && tag.Id.String != nil {
+						tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+					}
+				}
+				item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+			} else {
+				item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			}
+
+			state.VirtualMachines = append(state.VirtualMachines, item)
 		}
 
-		state.VirtualMachines = append(state.VirtualMachines, item)
+		offset += pageLimit
 	}
 
 	tflog.Debug(ctx, "read virtual machines", map[string]any{"count": len(state.VirtualMachines)})
