@@ -18,7 +18,7 @@ func main() {
 		context.Background(),
 		func() tfprovider.Provider { return provider.New(version) },
 		providerserver.ServeOpts{
-			Address: "registry.terraform.io/nautobot/nautobot",
+			Address: "registry.terraform.io/TobiPeterG/nautobot",
 		},
 	)
 }
