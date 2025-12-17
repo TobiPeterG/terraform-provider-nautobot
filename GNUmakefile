@@ -3,7 +3,7 @@ HOSTNAME=github.com
 NAMESPACE=nautobot
 NAME=nautobot
 BINARY=terraform-provider-${NAME}
-VERSION=3.0.0-beta
+VERSION=3.0.0
 OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
 
 LDFLAGS=-X 'main.version=$(VERSION)'
@@ -102,6 +102,7 @@ local: install
 
 docs:
 	sed -i "s|version =.*|version = \"${VERSION}\"|" README.md
+	sed -i "s|version =.*|version = \"${VERSION}\"|" examples/provider/provider.tf
 	go generate ./...
 
 tag: local

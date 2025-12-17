@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     nautobot = {
-      version = "3.0.0-beta"
+      version = "3.0.0"
       source  = "github.com/nautobot/nautobot"
     }
   }

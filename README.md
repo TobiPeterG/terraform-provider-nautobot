@@ -1,9 +1,5 @@
 # Terraform Provider Nautobot
 
-## :warning: Disclaimer :warning:
-
-This project is in **beta** development stage, and it's suitable to change before being released as generally available. Use it at your own discretion.
-
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.13.5 or [OpenTofu](https://opentofu.org/docs/intro/install/) >= 1.10.8
@@ -41,7 +37,7 @@ The provide requires two arguments, `url` and `token`. For the data sources and 
 terraform {
   required_providers {
     nautobot = {
-      version = "3.0.0-beta"
+      version = "3.0.0"
       source  = "nautobot/nautobot"
     }
   }
