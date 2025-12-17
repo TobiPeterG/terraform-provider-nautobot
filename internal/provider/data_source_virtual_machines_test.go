@@ -23,25 +23,24 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[2]s"
 }
 
 resource "nautobot_virtual_machine" "vm1" {
   name       = "%[1]s-1"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[3]s"
+  status     = "%[2]s"
 }
 
 resource "nautobot_virtual_machine" "vm2" {
   name       = "%[1]s-2"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[3]s"
+  status     = "%[2]s"
 }
 
 resource "nautobot_virtual_machine" "vm3" {
   name       = "%[1]s-3"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[3]s"
+  status     = "%[2]s"
 }
 
 data "nautobot_virtual_machines" "test" {
@@ -53,7 +52,6 @@ data "nautobot_virtual_machines" "test" {
 }
 `,
 		base,
-		testTenantID,
 		status,
 	)
 }
@@ -69,48 +67,37 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[2]s"
 }
 
 # minimal VM (to ensure mixed content works)
 resource "nautobot_virtual_machine" "vm1" {
   name       = "%[1]s-1"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[3]s"
+  status     = "%[2]s"
 }
 
 # full VM A
 resource "nautobot_virtual_machine" "vm2" {
   name                = "%[1]s-2"
   cluster_id          = nautobot_cluster.cl.id
-  status              = "%[3]s"
+  status              = "%[2]s"
 
   vcpus               = 4
   memory              = 8192
   disk                = 100
   comments            = "vm2 created by terraform acceptance test"
-
-  tenant_id           = "%[2]s"
-  platform_id         = "%[4]s"
-  role_id             = "%[5]s"
-  software_version_id = "%[6]s"
 }
 
 # full VM B (different values)
 resource "nautobot_virtual_machine" "vm3" {
   name                = "%[1]s-3"
   cluster_id          = nautobot_cluster.cl.id
-  status              = "%[3]s"
+  status              = "%[2]s"
 
   vcpus               = 8
   memory              = 16384
   disk                = 200
   comments            = "vm3 created by terraform acceptance test"
-
-  tenant_id           = "%[2]s"
-  platform_id         = "%[4]s"
-  role_id             = "%[5]s"
-  software_version_id = "%[6]s"
 }
 
 data "nautobot_virtual_machines" "test" {
@@ -122,11 +109,7 @@ data "nautobot_virtual_machines" "test" {
 }
 `,
 		base,
-		testTenantID,
 		status,
-		testPlatformID,
-		testRoleID,
-		testSoftwareVersionID,
 	)
 }
 
@@ -213,9 +196,9 @@ func TestAccVirtualMachinesDataSource_full(t *testing.T) {
 					testCheckVMInListHasAttrs(virtualMachinesDataSourceName, vm2, map[string]string{
 						"name":           vm2,
 						"status":         "Active",
-						"tenant_id":      testTenantID,
-						"platform_id":    testPlatformID,
-						"role_id":        testRoleID,
+						"tenant_id":      "",
+						"platform_id":    "",
+						"role_id":        "",
 						"primary_ip4_id": "",
 						"primary_ip6_id": "",
 						"vcpus":          "4",
@@ -227,9 +210,9 @@ func TestAccVirtualMachinesDataSource_full(t *testing.T) {
 					testCheckVMInListHasAttrs(virtualMachinesDataSourceName, vm3, map[string]string{
 						"name":           vm3,
 						"status":         "Active",
-						"tenant_id":      testTenantID,
-						"platform_id":    testPlatformID,
-						"role_id":        testRoleID,
+						"tenant_id":      "",
+						"platform_id":    "",
+						"role_id":        "",
 						"primary_ip4_id": "",
 						"primary_ip6_id": "",
 						"vcpus":          "8",

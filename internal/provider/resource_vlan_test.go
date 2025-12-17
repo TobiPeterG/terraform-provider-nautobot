@@ -33,9 +33,8 @@ resource "nautobot_vlan" "test" {
   status      = "%s"
 
   description = "created by terraform acceptance test"
-  tenant_id   = "%s"
 }
-`, name, vid, status, testTenantID)
+`, name, vid, status)
 }
 
 func testAccVLANConfigUpdated(name string, vid int) string {
@@ -48,9 +47,8 @@ resource "nautobot_vlan" "test" {
   status      = "%s"
 
   description = "updated by terraform acceptance test"
-  tenant_id   = "%s"
 }
-`, name, vid, status, testTenantID)
+`, name, vid, status)
 }
 
 func testAccVLANConfigParallel(baseName string, baseVid int) string {
@@ -127,7 +125,7 @@ func TestAccVLANResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vlanResourceName, "vid", fmt.Sprintf("%d", vid)),
 					resource.TestCheckResourceAttr(vlanResourceName, "status", testStatus),
 					resource.TestCheckResourceAttr(vlanResourceName, "description", "created by terraform acceptance test"),
-					resource.TestCheckResourceAttr(vlanResourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(vlanResourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttr(vlanResourceName, "tags_ids.#", "0"),
 				),
 			},
@@ -169,7 +167,7 @@ func TestAccVLANResource_updateAndDrift(t *testing.T) {
 					resource.TestCheckResourceAttr(vlanResourceName, "name", name+"-updated"),
 					resource.TestCheckResourceAttr(vlanResourceName, "vid", fmt.Sprintf("%d", vid2)),
 					resource.TestCheckResourceAttr(vlanResourceName, "description", "updated by terraform acceptance test"),
-					resource.TestCheckResourceAttr(vlanResourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(vlanResourceName, "tenant_id", ""),
 				),
 			},
 			{

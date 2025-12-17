@@ -30,7 +30,7 @@ resource "nautobot_prefix" "test" {
 data "nautobot_prefix" "test" {
   id = nautobot_prefix.test.id
 }
-`, prefixCIDR, baseName, baseVid, testStatus, testTenantID)
+`, prefixCIDR, baseName, baseVid, testStatus, "")
 }
 
 func testAccPrefixDataSourceConfigByVLAN(prefixCIDR string, baseName string, baseVid int) string {
@@ -52,7 +52,7 @@ data "nautobot_prefix" "test" {
   depends_on = [nautobot_prefix.test]
   vlan_id = nautobot_prefix.test.vlan_id
 }
-`, prefixCIDR, baseName, baseVid, testStatus, testTenantID)
+`, prefixCIDR, baseName, baseVid, testStatus, "")
 }
 
 func TestAccPrefixDataSource_byID(t *testing.T) {
@@ -89,7 +89,7 @@ func TestAccPrefixDataSource_byID(t *testing.T) {
 					resource.TestCheckResourceAttr(prefixDataSourceName, "description", "created by terraform acceptance test"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "parent_id", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "role_id", ""),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "rir_id", ""),
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "namespace_id"),
 					resource.TestCheckResourceAttrPair(prefixDataSourceName, "vlan_id", "nautobot_vlan.v", "id"),
@@ -123,7 +123,7 @@ func TestAccPrefixDataSource_byVLAN(t *testing.T) {
 					resource.TestCheckResourceAttrPair(prefixDataSourceName, "vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "prefix", prefixCIDR),
 
-					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", ""),
 
 					resource.TestCheckResourceAttr(prefixDataSourceName, "description", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "parent_id", ""),

@@ -23,7 +23,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
@@ -37,7 +36,7 @@ resource "nautobot_vm_interface" "test" {
   status             = "%s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 }
-`, name, name, testTenantID, name, status, name, testStatus)
+`, name, name, name, status, name, testStatus)
 }
 
 func testAccVMInterfaceConfigFull(name string, vid int, cidr string) string {
@@ -47,18 +46,18 @@ func testAccVMInterfaceConfigFull(name string, vid int, cidr string) string {
 resource "nautobot_vlan" "v" {
   name   = "%[1]s-vlan"
   vid    = %[2]d
-  status = "%[6]s"
+  status = "%[5]s"
 }
 
 resource "nautobot_prefix" "p" {
   prefix  = "%[3]s"
-  status  = "%[6]s"
+  status  = "%[5]s"
   vlan_id = nautobot_vlan.v.id
 }
 
 resource "nautobot_available_ip_address" "ip1" {
   prefix_id = nautobot_prefix.p.id
-  status    = "%[6]s"
+  status    = "%[5]s"
 }
 
 resource "nautobot_cluster_type" "ct" {
@@ -68,18 +67,17 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[4]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
   name       = "%[1]s-vm"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[5]s"
+  status     = "%[4]s"
 }
 
 resource "nautobot_vm_interface" "test" {
   name               = "%[1]s-if0"
-  status             = "%[6]s"
+  status             = "%[5]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   mac_address      = "AA:BB:CC:DD:EE:FF"
@@ -90,7 +88,7 @@ resource "nautobot_vm_interface" "test" {
   untagged_vlan_id = nautobot_vlan.v.id
   ip_addresses     = [nautobot_available_ip_address.ip1.id]
 }
-`, name, vid, cidr, testTenantID, status, testStatus)
+`, name, vid, cidr, status, testStatus)
 }
 
 func testAccVMInterfaceConfigUpdated(name string, vid int, cidr string) string {
@@ -100,18 +98,18 @@ func testAccVMInterfaceConfigUpdated(name string, vid int, cidr string) string {
 resource "nautobot_vlan" "v" {
   name   = "%[1]s-vlan"
   vid    = %[2]d
-  status = "%[6]s"
+  status = "%[5]s"
 }
 
 resource "nautobot_prefix" "p" {
   prefix  = "%[3]s"
-  status  = "%[6]s"
+  status  = "%[5]s"
   vlan_id = nautobot_vlan.v.id
 }
 
 resource "nautobot_available_ip_address" "ip1" {
   prefix_id = nautobot_prefix.p.id
-  status    = "%[6]s"
+  status    = "%[5]s"
 }
 
 resource "nautobot_cluster_type" "ct" {
@@ -121,18 +119,17 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[4]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
   name       = "%[1]s-vm"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[5]s"
+  status     = "%[4]s"
 }
 
 resource "nautobot_vm_interface" "test" {
   name               = "%[1]s-if0-updated"
-  status             = "%[6]s"
+  status             = "%[5]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   mac_address      = "AA:BB:CC:DD:EE:11"
@@ -143,7 +140,7 @@ resource "nautobot_vm_interface" "test" {
   untagged_vlan_id = nautobot_vlan.v.id
   ip_addresses     = [nautobot_available_ip_address.ip1.id]
 }
-`, name, vid, cidr, testTenantID, status, testStatus)
+`, name, vid, cidr, status, testStatus)
 }
 
 func testAccVMInterfaceConfigParallel(name string) string {
@@ -157,7 +154,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
@@ -184,7 +180,7 @@ resource "nautobot_vm_interface" "if3" {
   virtual_machine_id = nautobot_virtual_machine.vm.id
 }
 `,
-		name, name, testTenantID, name, status,
+		name, name, name, status,
 		name, testStatus,
 		name, testStatus,
 		name, testStatus,

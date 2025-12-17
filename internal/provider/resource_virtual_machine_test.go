@@ -23,7 +23,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
 }
 
 resource "nautobot_virtual_machine" "test" {
@@ -31,7 +30,7 @@ resource "nautobot_virtual_machine" "test" {
   cluster_id = nautobot_cluster.cl.id
   status     = "%s"
 }
-`, name, name, testTenantID, name, status)
+`, name, name, name, status)
 }
 
 func testAccVirtualMachineConfigFull(name string) string {
@@ -45,7 +44,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
 }
 
 resource "nautobot_virtual_machine" "test" {
@@ -57,22 +55,12 @@ resource "nautobot_virtual_machine" "test" {
   memory              = 8192
   disk                = 100
   comments            = "created by terraform acceptance test"
-
-  tenant_id           = "%s"
-  platform_id         = "%s"
-  role_id             = "%s"
-  software_version_id = "%s"
 }
 `,
 		name,
 		name,
-		testTenantID,
 		name,
 		status,
-		testTenantID,
-		testPlatformID,
-		testRoleID,
-		testSoftwareVersionID,
 	)
 }
 
@@ -87,7 +75,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
 }
 
 resource "nautobot_virtual_machine" "test" {
@@ -100,21 +87,12 @@ resource "nautobot_virtual_machine" "test" {
   disk                = 200
   comments            = "updated by terraform acceptance test"
 
-  tenant_id           = "%s"
-  platform_id         = "%s"
-  role_id             = "%s"
-  software_version_id = "%s"
 }
 `,
 		name,
 		name,
-		testTenantID,
 		name,
 		status,
-		testTenantID,
-		testPlatformID,
-		testRoleID,
-		testSoftwareVersionID,
 	)
 }
 
@@ -129,7 +107,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
 }
 
 resource "nautobot_virtual_machine" "vm1" {
@@ -152,7 +129,6 @@ resource "nautobot_virtual_machine" "vm3" {
 `,
 		name,
 		name,
-		testTenantID,
 		name, status,
 		name, status,
 		name, status,
@@ -204,7 +180,7 @@ func TestAccVirtualMachineResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vmResourceName, "memory", "8192"),
 					resource.TestCheckResourceAttr(vmResourceName, "disk", "100"),
 					resource.TestCheckResourceAttr(vmResourceName, "comments", "created by terraform acceptance test"),
-					resource.TestCheckResourceAttr(vmResourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(vmResourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttr(vmResourceName, "tags_ids.#", "0"),
 				),
 			},
@@ -245,7 +221,7 @@ func TestAccVirtualMachineResource_updateAndDrift(t *testing.T) {
 					resource.TestCheckResourceAttr(vmResourceName, "memory", "16384"),
 					resource.TestCheckResourceAttr(vmResourceName, "disk", "200"),
 					resource.TestCheckResourceAttr(vmResourceName, "comments", "updated by terraform acceptance test"),
-					resource.TestCheckResourceAttr(vmResourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(vmResourceName, "tenant_id", ""),
 				),
 			},
 			{

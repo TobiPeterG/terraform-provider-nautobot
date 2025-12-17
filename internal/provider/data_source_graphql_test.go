@@ -15,7 +15,12 @@ const (
 
 func testAccGraphQLDataSourceConfigManufacturers() string {
 	return testAccProviderConfig() + `
+resource "nautobot_manufacturer" "test" {
+  name = "Cisco"
+}
+
 data "nautobot_graphql" "test" {
+  depends_on = [nautobot_manufacturer.test]
   query = <<-GQL
 query {
   manufacturers {

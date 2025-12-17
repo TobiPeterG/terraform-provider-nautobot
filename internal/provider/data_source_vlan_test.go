@@ -37,7 +37,6 @@ resource "nautobot_vlan" "test" {
   vid         = %[2]d
   status      = "%[3]s"
   description = "created by terraform acceptance test"
-  tenant_id   = "%[4]s"
 }
 
 data "nautobot_vlan" "test" {
@@ -48,7 +47,6 @@ data "nautobot_vlan" "test" {
 		name,
 		vid,
 		status,
-		testTenantID,
 	)
 }
 
@@ -111,7 +109,7 @@ func TestAccVLANDataSource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vlanDataSourceName, "status", testStatus),
 
 					resource.TestCheckResourceAttr(vlanDataSourceName, "description", "created by terraform acceptance test"),
-					resource.TestCheckResourceAttr(vlanDataSourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(vlanDataSourceName, "tenant_id", ""),
 
 					resource.TestCheckResourceAttrSet(vlanDataSourceName, "id"),
 					resource.TestCheckResourceAttrSet(vlanDataSourceName, "created"),

@@ -6,17 +6,20 @@ BINARY=terraform-provider-${NAME}
 VERSION=3.0.0-beta
 OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
 
-# Inject VERSION into main.version
 LDFLAGS=-X 'main.version=$(VERSION)'
 
-# Pick a CLI automatically (prefer OpenTofu if present), or let the caller override:
-#   make testacc TFCLI=terraform
-#   make testacc TFCLI=tofu
-TFCLI?=$(shell command -v tofu >/dev/null 2>&1 && echo tofu || echo terraform)
-TFCLI_ABS:=$(shell command -v $(TFCLI) 2>/dev/null)
-
-# Optional: stable plugin cache (avoids repeated provider/module downloads)
 TF_PLUGIN_CACHE_DIR?=$(CURDIR)/.terraform.d/plugin-cache
+
+DOCKER_COMPOSE?=docker compose
+COMPOSE_NAUTOBOT_FILE?=test/nautobot/docker-compose.yml
+COMPOSE_CI_FILE?=test/docker-compose.yml
+
+NAUTOBOT_VER?=3.0.2
+PYTHON_VER?=3.12
+
+TF_TOOL?=opentofu
+TF_VERSION?=1.11.1
+TF_TARGET?=$(if $(filter opentofu,$(TF_TOOL)),with-opentofu,with-terraform)
 
 default: install
 
@@ -45,7 +48,29 @@ test:
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
-testacc:
+testacc-docker:
+	@mkdir -p "$(TF_PLUGIN_CACHE_DIR)"
+	@echo "Running acceptance tests via Docker Compose"
+	@echo "  TF_TOOL=$(TF_TOOL) TF_VERSION=$(TF_VERSION) TF_TARGET=$(TF_TARGET)"
+	@echo "  NAUTOBOT_VER=$(NAUTOBOT_VER) PYTHON_VER=$(PYTHON_VER)"
+	@NAUTOBOT_VER="$(NAUTOBOT_VER)" \
+	  PYTHON_VER="$(PYTHON_VER)" \
+	  TF_TOOL="$(TF_TOOL)" \
+	  TF_VERSION="$(TF_VERSION)" \
+	  TF_TARGET="$(TF_TARGET)" \
+	  $(DOCKER_COMPOSE) --project-directory . -f "$(COMPOSE_NAUTOBOT_FILE)" -f "$(COMPOSE_CI_FILE)" \
+	    up --build --abort-on-container-exit --exit-code-from testrunner
+
+testacc-docker-down:
+	@NAUTOBOT_VER="$(NAUTOBOT_VER)" \
+	  PYTHON_VER="$(PYTHON_VER)" \
+	  TF_TOOL="$(TF_TOOL)" \
+	  TF_VERSION="$(TF_VERSION)" \
+	  TF_TARGET="$(TF_TARGET)" \
+	  $(DOCKER_COMPOSE) --project-directory . -f "$(COMPOSE_NAUTOBOT_FILE)" -f "$(COMPOSE_CI_FILE)" \
+	    down -v --remove-orphans
+
+testacc-local:
 	@if command -v tofu >/dev/null 2>&1; then \
 		cli=tofu; \
 	elif command -v terraform >/dev/null 2>&1; then \
@@ -63,6 +88,13 @@ testacc:
 	TF_ACC_PROVIDER_NAMESPACE="hashicorp" \
 	TF_ACC_PROVIDER_HOST="registry.opentofu.org" \
 	go test -p 1 $(TEST) -v $(TESTARGS) -timeout 120m
+
+testacc:
+ifeq ($(CI),true)
+	@$(MAKE) testacc-docker
+else
+	@$(MAKE) testacc-local
+endif
 
 local: install
 	sed -i "s|version =.*|version = \"${VERSION}\"|" test/provider.tf

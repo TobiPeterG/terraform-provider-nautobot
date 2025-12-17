@@ -80,7 +80,7 @@ data "nautobot_prefixes" "test" {
     nautobot_prefix.p3,
   ]
 }
-`, base, p1, p2, p3, testTenantID, testStatus, vid)
+`, base, p1, p2, p3, "", testStatus, vid)
 }
 
 func TestAccPrefixesDataSource_basic(t *testing.T) {
@@ -162,7 +162,7 @@ func TestAccPrefixesDataSource_full(t *testing.T) {
 					testCheckPrefixInListHasAttrs(prefixesDataSourceName, p2, map[string]string{
 						"prefix":         p2,
 						"description":    "p2 created by terraform acceptance test",
-						"tenant_id":      testTenantID,
+						"tenant_id":      "",
 						"date_allocated": "",
 						"tags_ids.#":     "0",
 					}),
@@ -171,7 +171,7 @@ func TestAccPrefixesDataSource_full(t *testing.T) {
 					testCheckPrefixInListHasAttrs(prefixesDataSourceName, p3, map[string]string{
 						"prefix":         p3,
 						"description":    "p3 created by terraform acceptance test",
-						"tenant_id":      testTenantID,
+						"tenant_id":      "",
 						"date_allocated": "",
 						"tags_ids.#":     "0",
 					}),

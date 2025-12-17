@@ -23,20 +23,19 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[2]s"
 }
 
 resource "nautobot_virtual_machine" "test" {
   name       = "%[1]s"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%[3]s"
+  status     = "%[2]s"
 }
 
 data "nautobot_virtual_machine" "test" {
   depends_on = [nautobot_virtual_machine.test]
   name = nautobot_virtual_machine.test.name
 }
-`, name, testTenantID, status)
+`, name, status)
 }
 
 func testAccVirtualMachineDataSourceConfigFull(name string) string {
@@ -50,23 +49,17 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[2]s"
 }
 
 resource "nautobot_virtual_machine" "test" {
   name                = "%[1]s"
   cluster_id          = nautobot_cluster.cl.id
-  status              = "%[3]s"
+  status              = "%[2]s"
 
   vcpus               = 4
   memory              = 8192
   disk                = 100
   comments            = "created by terraform acceptance test"
-
-  tenant_id           = "%[2]s"
-  platform_id         = "%[4]s"
-  role_id             = "%[5]s"
-  software_version_id = "%[6]s"
 }
 
 data "nautobot_virtual_machine" "test" {
@@ -75,11 +68,7 @@ data "nautobot_virtual_machine" "test" {
 }
 `,
 		name,
-		testTenantID,
 		status,
-		testPlatformID,
-		testRoleID,
-		testSoftwareVersionID,
 	)
 }
 
@@ -157,9 +146,9 @@ func TestAccVirtualMachineDataSource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vmDataSourceName, "disk", "100"),
 
 					resource.TestCheckResourceAttr(vmDataSourceName, "comments", "created by terraform acceptance test"),
-					resource.TestCheckResourceAttr(vmDataSourceName, "tenant_id", testTenantID),
-					resource.TestCheckResourceAttr(vmDataSourceName, "platform_id", testPlatformID),
-					resource.TestCheckResourceAttr(vmDataSourceName, "role_id", testRoleID),
+					resource.TestCheckResourceAttr(vmDataSourceName, "tenant_id", ""),
+					resource.TestCheckResourceAttr(vmDataSourceName, "platform_id", ""),
+					resource.TestCheckResourceAttr(vmDataSourceName, "role_id", ""),
 
 					resource.TestCheckResourceAttr(vmDataSourceName, "primary_ip4_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "primary_ip6_id", ""),

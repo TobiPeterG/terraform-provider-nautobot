@@ -45,7 +45,7 @@ data "nautobot_clusters" "test" {
     nautobot_cluster.cl3,
   ]
 }
-`, base, testTenantID)
+`, base, "")
 }
 
 func TestAccClustersDataSource_list(t *testing.T) {
@@ -72,7 +72,7 @@ func TestAccClustersDataSource_list(t *testing.T) {
 
 					testCheckClusterInListHasAttrs(clustersDataSourceName, cl1, map[string]string{
 						"name":             cl1,
-						"tenant_id":        testTenantID,
+						"tenant_id":        "",
 						"comments":         "",
 						"cluster_group_id": "",
 						"location_id":      "",
@@ -80,7 +80,7 @@ func TestAccClustersDataSource_list(t *testing.T) {
 					}),
 					testCheckClusterInListHasAttrs(clustersDataSourceName, cl2, map[string]string{
 						"name":             cl2,
-						"tenant_id":        testTenantID,
+						"tenant_id":        "",
 						"comments":         "cl2 created by terraform acceptance test",
 						"cluster_group_id": "",
 						"location_id":      "",
@@ -88,7 +88,7 @@ func TestAccClustersDataSource_list(t *testing.T) {
 					}),
 					testCheckClusterInListHasAttrs(clustersDataSourceName, cl3, map[string]string{
 						"name":             cl3,
-						"tenant_id":        testTenantID,
+						"tenant_id":        "",
 						"comments":         "cl3 created by terraform acceptance test",
 						"cluster_group_id": "",
 						"location_id":      "",

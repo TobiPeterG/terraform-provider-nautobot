@@ -27,10 +27,10 @@ website/node_modules
 
 .vscode/
 website/vendor
-test/.terraform.lock.hcl
-test/*.tfplan
-test/*tfplan
-test/terraform.tfstate
+*.terraform.lock.hcl
+*.tfplan
+*tfplan
+*terraform.tfstate
 
 # Test exclusions
 !command/test-fixtures/**/*.tfstate

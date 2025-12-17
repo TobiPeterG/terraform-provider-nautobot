@@ -13,16 +13,9 @@ import (
 )
 
 const (
-	testURL               = "https://demo.nautobot.com"
-	testToken             = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	testTenantID          = "0cd8590b-1678-45ab-9ddf-f1d8f68ac8a4"
-	testPlatformID        = "302e464d-a9e6-56d8-9cb1-44f0e5da411a"
-	testRoleID            = ""
-	testSoftwareVersionID = "6d4b73fb-38da-523c-84fd-5109163231c9"
-	testStatus            = "Active"
-	testClusterGroupID    = ""
-	testClusterLocationID = ""
-	//testTagID             = ""
+	testURL    = "http://nautobot:8080"
+	testToken  = "0123456789abcdef0123456789abcdef01234567"
+	testStatus = "Active"
 )
 
 func testAccSeedForTest(t *testing.T) int64 {

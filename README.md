@@ -6,8 +6,8 @@ This project is in **beta** development stage, and it's suitable to change befor
 
 ## Requirements
 
-- [Terraform](https://www.terraform.io/downloads.html) >= 0.13.x
-- [Go](https://golang.org/doc/install) >= 1.21.13
+- [Terraform](https://www.terraform.io/downloads.html) >= 1.13.5 or [OpenTofu](https://opentofu.org/docs/intro/install/) >= 1.10.8
+- [Go](https://golang.org/doc/install) >= 1.24.X
 
 ## Building The Provider
 

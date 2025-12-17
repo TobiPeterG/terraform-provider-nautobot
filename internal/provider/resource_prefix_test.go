@@ -44,9 +44,8 @@ resource "nautobot_prefix" "test" {
   status      = "%[3]s"
   vlan_id     = nautobot_vlan.v.id
   description = "created by terraform acceptance test"
-  tenant_id   = "%[5]s"
 }
-`, name, vid, status, cidr, testTenantID)
+`, name, vid, status, cidr)
 }
 
 func testAccPrefixConfigUpdated(name string, vid int, cidr string) string {
@@ -64,9 +63,8 @@ resource "nautobot_prefix" "test" {
   status      = "%[3]s"
   vlan_id     = nautobot_vlan.v.id
   description = "updated by terraform acceptance test"
-  tenant_id   = "%[5]s"
 }
-`, name, vid, status, cidr, testTenantID)
+`, name, vid, status, cidr)
 }
 
 func testAccPrefixConfigParallel(baseName string, baseVid int, seed int64) string {
@@ -168,7 +166,7 @@ func TestAccPrefixResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(prefixResourceName, "prefix", cidr),
 					resource.TestCheckResourceAttr(prefixResourceName, "status", testStatus),
 					resource.TestCheckResourceAttr(prefixResourceName, "description", "created by terraform acceptance test"),
-					resource.TestCheckResourceAttr(prefixResourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(prefixResourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttrPair(prefixResourceName, "vlan_id", "nautobot_vlan.v", "id"),
 				),
 			},
@@ -207,7 +205,7 @@ func TestAccPrefixResource_updateAndDrift(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(prefixResourceName, "prefix", cidr),
 					resource.TestCheckResourceAttr(prefixResourceName, "description", "updated by terraform acceptance test"),
-					resource.TestCheckResourceAttr(prefixResourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(prefixResourceName, "tenant_id", ""),
 				),
 			},
 			{

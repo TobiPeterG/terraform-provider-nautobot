@@ -34,7 +34,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[5]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
@@ -50,7 +49,7 @@ resource "nautobot_available_ip_address" "ip4" {
 
 resource "nautobot_vm_interface" "if0" {
   name               = "%[1]s-if0"
-  status             = "%[6]s"
+  status             = "%[5]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   ip_addresses = [nautobot_available_ip_address.ip4.id]
@@ -62,7 +61,7 @@ resource "nautobot_vm_primary_ip" "test" {
 
   depends_on = [nautobot_vm_interface.if0]
 }
-`, name, vid, status, cidr, testTenantID, testStatus)
+`, name, vid, status, cidr, testStatus)
 }
 
 func testAccVMPrimaryIPConfigIPv4UpdateA(name string, vid int, cidr string) string {
@@ -88,7 +87,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[5]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
@@ -109,7 +107,7 @@ resource "nautobot_available_ip_address" "ip4b" {
 
 resource "nautobot_vm_interface" "if0" {
   name               = "%[1]s-if0"
-  status             = "%[6]s"
+  status             = "%[5]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   ip_addresses = [
@@ -124,7 +122,7 @@ resource "nautobot_vm_primary_ip" "test" {
 
   depends_on = [nautobot_vm_interface.if0]
 }
-`, name, vid, status, cidr, testTenantID, testStatus)
+`, name, vid, status, cidr, testStatus)
 }
 
 func testAccVMPrimaryIPConfigIPv4UpdateB(name string, vid int, cidr string) string {
@@ -150,7 +148,6 @@ resource "nautobot_cluster_type" "ct" {
 resource "nautobot_cluster" "cl" {
   name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%[5]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
@@ -171,7 +168,7 @@ resource "nautobot_available_ip_address" "ip4b" {
 
 resource "nautobot_vm_interface" "if0" {
   name               = "%[1]s-if0"
-  status             = "%[6]s"
+  status             = "%[5]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   ip_addresses = [
@@ -186,7 +183,7 @@ resource "nautobot_vm_primary_ip" "test" {
 
   depends_on = [nautobot_vm_interface.if0]
 }
-`, name, vid, status, cidr, testTenantID, testStatus)
+`, name, vid, status, cidr, testStatus)
 }
 
 func TestAccVMPrimaryIPResource_ipv4Single(t *testing.T) {

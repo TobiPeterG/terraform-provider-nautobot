@@ -28,7 +28,7 @@ resource "nautobot_cluster" "test" {
 data "nautobot_cluster" "test" {
   name = nautobot_cluster.test.name
 }
-`, name, testTenantID)
+`, name, "")
 }
 
 func testAccClusterDataSourceConfigFull(name string) string {
@@ -49,7 +49,7 @@ resource "nautobot_cluster" "test" {
 data "nautobot_cluster" "test" {
   name = nautobot_cluster.test.name
 }
-`, name, testTenantID, testClusterGroupID, testClusterLocationID)
+`, name, "", "", "")
 }
 
 func TestAccClusterDataSource_minimal(t *testing.T) {
@@ -78,7 +78,7 @@ func TestAccClusterDataSource_minimal(t *testing.T) {
 
 					resource.TestCheckResourceAttr(clusterDataSourceName, "comments", ""),
 					resource.TestCheckResourceAttr(clusterDataSourceName, "cluster_group_id", ""),
-					resource.TestCheckResourceAttr(clusterDataSourceName, "tenant_id", testTenantID),
+					resource.TestCheckResourceAttr(clusterDataSourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttr(clusterDataSourceName, "location_id", ""),
 
 					resource.TestCheckResourceAttr(clusterDataSourceName, "tags_ids.#", "0"),
@@ -118,9 +118,9 @@ func TestAccClusterDataSource_full(t *testing.T) {
 					),
 
 					resource.TestCheckResourceAttr(clusterDataSourceName, "comments", "created by terraform acceptance test"),
-					resource.TestCheckResourceAttr(clusterDataSourceName, "cluster_group_id", testClusterGroupID),
-					resource.TestCheckResourceAttr(clusterDataSourceName, "tenant_id", testTenantID),
-					resource.TestCheckResourceAttr(clusterDataSourceName, "location_id", testClusterLocationID),
+					resource.TestCheckResourceAttr(clusterDataSourceName, "cluster_group_id", ""),
+					resource.TestCheckResourceAttr(clusterDataSourceName, "tenant_id", ""),
+					resource.TestCheckResourceAttr(clusterDataSourceName, "location_id", ""),
 
 					resource.TestCheckResourceAttr(clusterDataSourceName, "tags_ids.#", "0"),
 					resource.TestCheckResourceAttrSet(clusterDataSourceName, "created"),
