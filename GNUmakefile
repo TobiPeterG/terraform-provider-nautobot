@@ -98,7 +98,7 @@ endif
 
 local: install
 	sed -i "s|version =.*|version = \"${VERSION}\"|" local/provider.tf
-	cd test; tofu init -upgrade && tofu apply -auto-approve; cd ..
+	cd local; tofu init -upgrade && tofu apply -auto-approve; cd ..
 
 docs:
 	sed -i "s|version =.*|version = \"${VERSION}\"|" README.md
