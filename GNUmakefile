@@ -97,7 +97,7 @@ else
 endif
 
 local: install
-	sed -i "s|version =.*|version = \"${VERSION}\"|" test/provider.tf
+	sed -i "s|version =.*|version = \"${VERSION}\"|" local/provider.tf
 	cd test; tofu init -upgrade && tofu apply -auto-approve; cd ..
 
 docs:
