@@ -3,7 +3,6 @@ package provider
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -11,11 +10,6 @@ import (
 const (
 	vlanResourceName = "nautobot_vlan.test"
 )
-
-func testAccVLANVid(seed int64, offset int) int {
-	base := int(seed % 2000)
-	return 2000 + base + offset
-}
 
 func testAccVLANConfigMinimal(name string, vid int) string {
 	status := testStatus
@@ -86,9 +80,9 @@ resource "nautobot_vlan" "vlan3" {
 func TestAccVLANResource_minimal(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-vlan-minimal-%d", seed)
-	vid := testAccVLANVid(seed, 0)
+	vid := testAccVLANVid(seed, 26)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -118,9 +112,9 @@ func TestAccVLANResource_minimal(t *testing.T) {
 func TestAccVLANResource_full(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-vlan-full-%d", seed)
-	vid := testAccVLANVid(seed, 10)
+	vid := testAccVLANVid(seed, 27)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -147,11 +141,11 @@ func TestAccVLANResource_full(t *testing.T) {
 func TestAccVLANResource_updateAndDrift(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-vlan-update-%d", seed)
 
-	vid1 := testAccVLANVid(seed, 20)
-	vid2 := testAccVLANVid(seed, 21)
+	vid1 := testAccVLANVid(seed, 28)
+	vid2 := testAccVLANVid(seed, 29)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -188,7 +182,7 @@ func TestAccVLANResource_updateAndDrift(t *testing.T) {
 func TestAccVLANResource_import(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-vlan-import-%d", seed)
 	vid := testAccVLANVid(seed, 30)
 
@@ -214,9 +208,9 @@ func TestAccVLANResource_import(t *testing.T) {
 func TestAccVLANResource_delete(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-vlan-delete-%d", seed)
-	vid := testAccVLANVid(seed, 40)
+	vid := testAccVLANVid(seed, 31)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -235,10 +229,10 @@ func TestAccVLANResource_delete(t *testing.T) {
 func TestAccVLANResource_parallel(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	baseName := fmt.Sprintf("tf-acc-vlan-parallel-%d", seed)
 
-	baseVid := testAccVLANVid(seed, 50)
+	baseVid := testAccVLANVid(seed, 32)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

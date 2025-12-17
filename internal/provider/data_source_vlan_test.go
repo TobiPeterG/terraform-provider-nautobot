@@ -3,7 +3,6 @@ package provider
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -56,9 +55,9 @@ data "nautobot_vlan" "test" {
 func TestAccVLANDataSource_minimal(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-ds-vlan-minimal-%d", seed)
-	vid := testAccVLANVid(seed, 0)
+	vid := testAccVLANVid(seed, 6)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -96,9 +95,9 @@ func TestAccVLANDataSource_minimal(t *testing.T) {
 func TestAccVLANDataSource_full(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-ds-vlan-full-%d", seed)
-	vid := testAccVLANVid(seed, 10)
+	vid := testAccVLANVid(seed, 7)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

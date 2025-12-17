@@ -2,12 +2,10 @@ package provider
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 const (
@@ -48,92 +46,6 @@ data "nautobot_clusters" "test" {
   ]
 }
 `, base, testTenantID)
-}
-
-func testCheckClustersCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[dsAddr]
-		if !ok {
-			return fmt.Errorf("not found: %s", dsAddr)
-		}
-		raw := rs.Primary.Attributes["clusters.#"]
-		if raw == "" {
-			return fmt.Errorf("%s: clusters.# is empty", dsAddr)
-		}
-		n, err := strconv.Atoi(raw)
-		if err != nil {
-			return fmt.Errorf("%s: cannot parse clusters.#=%q: %w", dsAddr, raw, err)
-		}
-		if n < min {
-			return fmt.Errorf("%s: expected at least %d clusters, got %d", dsAddr, min, n)
-		}
-		return nil
-	}
-}
-
-func testFindClusterIndexByName(dsAddr, wantName string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[dsAddr]
-		if !ok {
-			return fmt.Errorf("not found: %s", dsAddr)
-		}
-		rawN := rs.Primary.Attributes["clusters.#"]
-		n, err := strconv.Atoi(rawN)
-		if err != nil {
-			return fmt.Errorf("%s: cannot parse clusters.#=%q: %w", dsAddr, rawN, err)
-		}
-		for i := 0; i < n; i++ {
-			k := fmt.Sprintf("clusters.%d.name", i)
-			if rs.Primary.Attributes[k] == wantName {
-				return nil
-			}
-		}
-		return fmt.Errorf("%s: expected to find cluster name %q in clusters list", dsAddr, wantName)
-	}
-}
-
-func testCheckClusterInListHasAttrs(dsAddr, clName string, want map[string]string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[dsAddr]
-		if !ok {
-			return fmt.Errorf("not found: %s", dsAddr)
-		}
-
-		rawN := rs.Primary.Attributes["clusters.#"]
-		n, err := strconv.Atoi(rawN)
-		if err != nil {
-			return fmt.Errorf("%s: cannot parse clusters.#=%q: %w", dsAddr, rawN, err)
-		}
-
-		idx := -1
-		for i := 0; i < n; i++ {
-			if rs.Primary.Attributes[fmt.Sprintf("clusters.%d.name", i)] == clName {
-				idx = i
-				break
-			}
-		}
-		if idx == -1 {
-			return fmt.Errorf("%s: expected to find cluster name %q in clusters list", dsAddr, clName)
-		}
-
-		for field, expected := range want {
-			k := fmt.Sprintf("clusters.%d.%s", idx, field)
-			got := rs.Primary.Attributes[k]
-			if got != expected {
-				return fmt.Errorf("%s: %s expected %q, got %q", dsAddr, k, expected, got)
-			}
-		}
-
-		requiredComputed := []string{"id", "cluster_type_id", "created", "last_updated"}
-		for _, f := range requiredComputed {
-			k := fmt.Sprintf("clusters.%d.%s", idx, f)
-			if rs.Primary.Attributes[k] == "" {
-				return fmt.Errorf("%s: %s expected to be set, got empty", dsAddr, k)
-			}
-		}
-
-		return nil
-	}
 }
 
 func TestAccClustersDataSource_list(t *testing.T) {

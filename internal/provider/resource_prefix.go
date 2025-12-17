@@ -245,7 +245,7 @@ func (r *PrefixResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	c := r.client.Client
 
-	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get status id", err.Error())
 		return
@@ -377,7 +377,7 @@ func (r *PrefixResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	if !plan.Status.Equal(state.Status) {
-		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
@@ -520,7 +520,7 @@ func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefix
 
 	statusName := ""
 	if p.Status.Id != nil && p.Status.Id.String != nil && *p.Status.Id.String != "" {
-		if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *p.Status.Id.String); err == nil {
+		if n, err := getStatusName(ctx, r.client.Client, *p.Status.Id.String); err == nil {
 			statusName = n
 		}
 	}

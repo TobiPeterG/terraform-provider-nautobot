@@ -2,12 +2,10 @@ package provider
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 const (
@@ -130,83 +128,6 @@ data "nautobot_virtual_machines" "test" {
 		testRoleID,
 		testSoftwareVersionID,
 	)
-}
-
-func testCheckVirtualMachinesCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[dsAddr]
-		if !ok {
-			return fmt.Errorf("not found: %s", dsAddr)
-		}
-		raw := rs.Primary.Attributes["virtual_machines.#"]
-		if raw == "" {
-			return fmt.Errorf("%s: virtual_machines.# is empty", dsAddr)
-		}
-		n, err := strconv.Atoi(raw)
-		if err != nil {
-			return fmt.Errorf("%s: cannot parse virtual_machines.#=%q: %w", dsAddr, raw, err)
-		}
-		if n < min {
-			return fmt.Errorf("%s: expected at least %d virtual_machines, got %d", dsAddr, min, n)
-		}
-		return nil
-	}
-}
-
-func testFindVMIndexByName(dsAddr, wantName string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[dsAddr]
-		if !ok {
-			return fmt.Errorf("not found: %s", dsAddr)
-		}
-		rawN := rs.Primary.Attributes["virtual_machines.#"]
-		n, err := strconv.Atoi(rawN)
-		if err != nil {
-			return fmt.Errorf("%s: cannot parse virtual_machines.#=%q: %w", dsAddr, rawN, err)
-		}
-		for i := 0; i < n; i++ {
-			k := fmt.Sprintf("virtual_machines.%d.name", i)
-			if rs.Primary.Attributes[k] == wantName {
-				return nil
-			}
-		}
-		return fmt.Errorf("%s: expected to find VM name %q in virtual_machines list", dsAddr, wantName)
-	}
-}
-
-func testCheckVMInListHasAttrs(dsAddr, vmName string, want map[string]string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[dsAddr]
-		if !ok {
-			return fmt.Errorf("not found: %s", dsAddr)
-		}
-
-		rawN := rs.Primary.Attributes["virtual_machines.#"]
-		n, err := strconv.Atoi(rawN)
-		if err != nil {
-			return fmt.Errorf("%s: cannot parse virtual_machines.#=%q: %w", dsAddr, rawN, err)
-		}
-
-		idx := -1
-		for i := 0; i < n; i++ {
-			if rs.Primary.Attributes[fmt.Sprintf("virtual_machines.%d.name", i)] == vmName {
-				idx = i
-				break
-			}
-		}
-		if idx == -1 {
-			return fmt.Errorf("%s: expected to find VM name %q in virtual_machines list", dsAddr, vmName)
-		}
-
-		for field, expected := range want {
-			k := fmt.Sprintf("virtual_machines.%d.%s", idx, field)
-			got := rs.Primary.Attributes[k]
-			if got != expected {
-				return fmt.Errorf("%s: %s expected %q, got %q", dsAddr, k, expected, got)
-			}
-		}
-		return nil
-	}
 }
 
 func TestAccVirtualMachinesDataSource_basic(t *testing.T) {

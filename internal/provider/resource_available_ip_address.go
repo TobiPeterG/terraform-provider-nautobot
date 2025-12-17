@@ -127,7 +127,7 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 
 	c := r.client.Client
 
-	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get status id", err.Error())
 		return
@@ -230,7 +230,7 @@ func (r *AvailableIPAddressResource) Update(ctx context.Context, req resource.Up
 	var patch nb.PatchedIPAddressRequest
 
 	if !plan.Status.Equal(state.Status) {
-		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
@@ -326,7 +326,7 @@ func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, p
 
 	statusName := ""
 	if ip.Status.Id != nil && ip.Status.Id.String != nil && *ip.Status.Id.String != "" {
-		if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *ip.Status.Id.String); err == nil {
+		if n, err := getStatusName(ctx, r.client.Client, *ip.Status.Id.String); err == nil {
 			statusName = n
 		}
 	}

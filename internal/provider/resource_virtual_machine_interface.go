@@ -215,7 +215,7 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 
 	c := r.client.Client
 
-	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get status id", err.Error())
 		return
@@ -414,7 +414,7 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	if !plan.Status.Equal(state.Status) {
-		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
@@ -601,7 +601,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 	statusName := ""
 	if ifc.Status.Id != nil && ifc.Status.Id.String != nil {
 		if *ifc.Status.Id.String != "" {
-			if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *ifc.Status.Id.String); err == nil {
+			if n, err := getStatusName(ctx, r.client.Client, *ifc.Status.Id.String); err == nil {
 				statusName = n
 			}
 		}

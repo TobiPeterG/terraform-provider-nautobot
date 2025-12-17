@@ -144,7 +144,6 @@ func (d *VirtualMachineDataSource) Read(ctx context.Context, req datasource.Read
 	}
 
 	c := d.client.Client
-	token := d.client.Token
 
 	vmName := data.Name.ValueString()
 
@@ -227,7 +226,7 @@ func (d *VirtualMachineDataSource) Read(ctx context.Context, req datasource.Read
 	if vm.Status.Id != nil && vm.Status.Id.String != nil {
 		statusID := *vm.Status.Id.String
 		if statusID != "" {
-			if n, err := getStatusName(ctx, c, token, statusID); err == nil {
+			if n, err := getStatusName(ctx, c, statusID); err == nil {
 				statusName = n
 			}
 		}

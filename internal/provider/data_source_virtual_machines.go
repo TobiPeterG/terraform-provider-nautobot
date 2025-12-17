@@ -151,7 +151,6 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 	}
 
 	c := d.client.Client
-	token := d.client.Token
 
 	const pageLimit int32 = 200
 	var offset int32 = 0
@@ -163,6 +162,7 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 			VirtualizationVirtualMachinesList(ctx).
 			Limit(pageLimit).
 			Offset(offset).
+			Sort("name").
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -233,7 +233,7 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 			if vm.Status.Id != nil && vm.Status.Id.String != nil {
 				statusID := *vm.Status.Id.String
 				if statusID != "" {
-					if n, err := getStatusName(ctx, c, token, statusID); err == nil {
+					if n, err := getStatusName(ctx, c, statusID); err == nil {
 						statusName = n
 					}
 				}
@@ -295,7 +295,11 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 			state.VirtualMachines = append(state.VirtualMachines, item)
 		}
 
-		offset += pageLimit
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
 	tflog.Debug(ctx, "read virtual machines", map[string]any{"count": len(state.VirtualMachines)})

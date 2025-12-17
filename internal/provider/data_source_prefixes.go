@@ -181,7 +181,6 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	c := d.client.Client
-	token := d.client.Token
 
 	const pageLimit int32 = 200
 	var offset int32 = 0
@@ -193,6 +192,7 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 			IpamPrefixesList(ctx).
 			Limit(pageLimit).
 			Offset(offset).
+			Sort("prefix").
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -238,7 +238,7 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 			statusName := ""
 			if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
 				if statusID := *prefix.Status.Id.String; statusID != "" {
-					if name, err := getStatusName(ctx, c, token, statusID); err == nil {
+					if name, err := getStatusName(ctx, c, statusID); err == nil {
 						statusName = name
 					}
 				}
@@ -322,7 +322,11 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 			state.Prefixes = append(state.Prefixes, item)
 		}
 
-		offset += pageLimit
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
 	tflog.Debug(ctx, "read prefixes", map[string]any{"count": len(state.Prefixes)})

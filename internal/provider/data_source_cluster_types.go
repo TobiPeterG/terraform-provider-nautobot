@@ -125,6 +125,7 @@ func (d *ClusterTypesDataSource) Read(ctx context.Context, req datasource.ReadRe
 			VirtualizationClusterTypesList(ctx).
 			Limit(pageLimit).
 			Offset(offset).
+			Sort("name").
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -174,7 +175,11 @@ func (d *ClusterTypesDataSource) Read(ctx context.Context, req datasource.ReadRe
 			state.ClusterTypes = append(state.ClusterTypes, item)
 		}
 
-		offset += pageLimit
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
 	tflog.Debug(ctx, "read cluster types", map[string]any{"count": len(state.ClusterTypes)})

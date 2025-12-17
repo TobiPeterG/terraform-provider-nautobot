@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -146,7 +146,9 @@ func (r *VLANResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"prefix_count": rschema.Int64Attribute{
 				Computed:    true,
 				Description: "Number of prefixes associated with this VLAN.",
-				Default:     int64default.StaticInt64(0),
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 
 			"url": rschema.StringAttribute{
@@ -192,7 +194,7 @@ func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	c := r.client.Client
 
-	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get status id", err.Error())
 		return
@@ -331,7 +333,7 @@ func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	if !plan.Status.Equal(state.Status) {
-		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
@@ -477,7 +479,7 @@ func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanMode
 
 	statusName := ""
 	if v.Status.Id != nil && v.Status.Id.String != nil && *v.Status.Id.String != "" {
-		if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *v.Status.Id.String); err == nil {
+		if n, err := getStatusName(ctx, r.client.Client, *v.Status.Id.String); err == nil {
 			statusName = n
 		}
 	}

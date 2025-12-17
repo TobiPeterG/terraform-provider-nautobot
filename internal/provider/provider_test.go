@@ -15,12 +15,12 @@ func testAccPreCheck(t *testing.T) {
 }
 
 func testAccProviderConfig() string {
-	url := "https://demo.nautobot.com/api"
-	token := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	url := testURL
+	token := testToken
 
 	return `
 provider "nautobot" {
-  url   = "` + url + `"
+  url   = "` + url + `/api"
   token = "` + token + `"
 }
 `

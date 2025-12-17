@@ -132,6 +132,7 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 			VirtualizationClustersList(ctx).
 			Limit(pageLimit).
 			Offset(offset).
+			Sort("name").
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -226,7 +227,11 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 			state.Clusters = append(state.Clusters, item)
 		}
 
-		offset += pageLimit
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
 	tflog.Debug(ctx, "read clusters", map[string]any{"count": len(state.Clusters)})

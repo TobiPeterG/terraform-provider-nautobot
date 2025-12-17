@@ -180,7 +180,7 @@ func (r *VirtualMachineResource) Create(ctx context.Context, req resource.Create
 
 	c := r.client.Client
 
-	statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+	statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get status id", err.Error())
 		return
@@ -343,7 +343,7 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 	}
 
 	if !plan.Status.Equal(state.Status) {
-		statusID, err := getStatusID(ctx, c, r.client.Token, plan.Status.ValueString())
+		statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
@@ -510,7 +510,7 @@ func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string)
 	statusName := ""
 	if vm.Status.Id != nil && vm.Status.Id.String != nil {
 		if *vm.Status.Id.String != "" {
-			if n, err := getStatusName(ctx, r.client.Client, r.client.Token, *vm.Status.Id.String); err == nil {
+			if n, err := getStatusName(ctx, r.client.Client, *vm.Status.Id.String); err == nil {
 				statusName = n
 			}
 		}

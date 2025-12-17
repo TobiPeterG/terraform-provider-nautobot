@@ -125,6 +125,7 @@ func (d *ManufacturersDataSource) Read(ctx context.Context, req datasource.ReadR
 			DcimManufacturersList(ctx).
 			Limit(pageLimit).
 			Offset(offset).
+			Sort("name").
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -174,7 +175,11 @@ func (d *ManufacturersDataSource) Read(ctx context.Context, req datasource.ReadR
 			state.Manufacturers = append(state.Manufacturers, item)
 		}
 
-		offset += pageLimit
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
 	tflog.Debug(ctx, "read manufacturers", map[string]any{"count": len(state.Manufacturers)})

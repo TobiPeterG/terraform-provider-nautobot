@@ -3,7 +3,6 @@ package provider
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -11,15 +10,6 @@ import (
 const (
 	prefixResourceName = "nautobot_prefix.test"
 )
-
-func testAccPrefixCIDR(seed int64, offset int) string {
-	oct3 := int(seed % 200)
-	oct4 := offset * 16
-	if oct4 > 240 {
-		oct4 = 240
-	}
-	return fmt.Sprintf("10.200.%d.%d/28", oct3, oct4)
-}
 
 func testAccPrefixConfigMinimal(name string, vid int, cidr string) string {
 	status := testStatus
@@ -81,9 +71,9 @@ resource "nautobot_prefix" "test" {
 
 func testAccPrefixConfigParallel(baseName string, baseVid int, seed int64) string {
 	status := testStatus
-	c1 := testAccPrefixCIDR(seed, 1)
-	c2 := testAccPrefixCIDR(seed, 2)
-	c3 := testAccPrefixCIDR(seed, 3)
+	c1 := testAccPrefixCIDR(seed, 8)
+	c2 := testAccPrefixCIDR(seed, 9)
+	c3 := testAccPrefixCIDR(seed, 10)
 
 	return testAccProviderConfig() + fmt.Sprintf(`
 resource "nautobot_vlan" "v" {
@@ -115,10 +105,10 @@ resource "nautobot_prefix" "p3" {
 func TestAccPrefixResource_minimal(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-prefix-minimal-%d", seed)
-	vid := testAccVLANVid(seed, 60)
-	cidr := testAccPrefixCIDR(seed, 0)
+	vid := testAccVLANVid(seed, 14)
+	cidr := testAccPrefixCIDR(seed, 11)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -163,10 +153,10 @@ func TestAccPrefixResource_minimal(t *testing.T) {
 func TestAccPrefixResource_full(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-prefix-full-%d", seed)
-	vid := testAccVLANVid(seed, 70)
-	cidr := testAccPrefixCIDR(seed, 10)
+	vid := testAccVLANVid(seed, 15)
+	cidr := testAccPrefixCIDR(seed, 12)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -192,10 +182,10 @@ func TestAccPrefixResource_full(t *testing.T) {
 func TestAccPrefixResource_updateAndDrift(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-prefix-update-%d", seed)
-	vid := testAccVLANVid(seed, 80)
-	cidr := testAccPrefixCIDR(seed, 20)
+	vid := testAccVLANVid(seed, 16)
+	cidr := testAccPrefixCIDR(seed, 13)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -230,10 +220,10 @@ func TestAccPrefixResource_updateAndDrift(t *testing.T) {
 func TestAccPrefixResource_import(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-prefix-import-%d", seed)
-	vid := testAccVLANVid(seed, 90)
-	cidr := testAccPrefixCIDR(seed, 30)
+	vid := testAccVLANVid(seed, 17)
+	cidr := testAccPrefixCIDR(seed, 14)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -257,10 +247,10 @@ func TestAccPrefixResource_import(t *testing.T) {
 func TestAccPrefixResource_delete(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	name := fmt.Sprintf("tf-acc-prefix-delete-%d", seed)
-	vid := testAccVLANVid(seed, 95)
-	cidr := testAccPrefixCIDR(seed, 40)
+	vid := testAccVLANVid(seed, 18)
+	cidr := testAccPrefixCIDR(seed, 15)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -279,9 +269,9 @@ func TestAccPrefixResource_delete(t *testing.T) {
 func TestAccPrefixResource_parallel(t *testing.T) {
 	t.Parallel()
 
-	seed := time.Now().Unix()
+	seed := testAccSeedForTest(t)
 	baseName := fmt.Sprintf("tf-acc-prefix-parallel-%d", seed)
-	baseVid := testAccVLANVid(seed, 96)
+	baseVid := testAccVLANVid(seed, 19)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

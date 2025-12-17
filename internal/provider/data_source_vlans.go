@@ -151,7 +151,6 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 
 	c := d.client.Client
-	token := d.client.Token
 
 	const pageLimit int32 = 200
 	var offset int32 = 0
@@ -163,6 +162,7 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			IpamVlansList(ctx).
 			Limit(pageLimit).
 			Offset(offset).
+			Sort("name").
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -218,7 +218,7 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
 				statusID := *vlan.Status.Id.String
 				if statusID != "" {
-					if name, err := getStatusName(ctx, c, token, statusID); err == nil {
+					if name, err := getStatusName(ctx, c, statusID); err == nil {
 						statusName = name
 					}
 				}
@@ -267,7 +267,11 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			state.VLANs = append(state.VLANs, item)
 		}
 
-		offset += pageLimit
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
 	tflog.Debug(ctx, "read VLANs", map[string]any{"count": len(state.VLANs)})

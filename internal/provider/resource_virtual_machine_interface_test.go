@@ -40,29 +40,46 @@ resource "nautobot_vm_interface" "test" {
 `, name, name, testTenantID, name, status, name, testStatus)
 }
 
-func testAccVMInterfaceConfigFull(name string) string {
+func testAccVMInterfaceConfigFull(name string, vid int, cidr string) string {
 	status := "Active"
 
 	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_vlan" "v" {
+  name   = "%[1]s-vlan"
+  vid    = %[2]d
+  status = "%[6]s"
+}
+
+resource "nautobot_prefix" "p" {
+  prefix  = "%[3]s"
+  status  = "%[6]s"
+  vlan_id = nautobot_vlan.v.id
+}
+
+resource "nautobot_available_ip_address" "ip1" {
+  prefix_id = nautobot_prefix.p.id
+  status    = "%[6]s"
+}
+
 resource "nautobot_cluster_type" "ct" {
-  name = "%s-ct"
+  name = "%[1]s-ct"
 }
 
 resource "nautobot_cluster" "cl" {
-  name            = "%s-cl"
+  name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
+  tenant_id       = "%[4]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
-  name       = "%s-vm"
+  name       = "%[1]s-vm"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%s"
+  status     = "%[5]s"
 }
 
 resource "nautobot_vm_interface" "test" {
-  name               = "%s-if0"
-  status             = "%s"
+  name               = "%[1]s-if0"
+  status             = "%[6]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   mac_address      = "AA:BB:CC:DD:EE:FF"
@@ -70,35 +87,52 @@ resource "nautobot_vm_interface" "test" {
   mtu              = 1500
   description      = "created by terraform acceptance test"
   mode             = "Access"
-  untagged_vlan_id = "%s"
-  ip_addresses     = ["%s"]
+  untagged_vlan_id = nautobot_vlan.v.id
+  ip_addresses     = [nautobot_available_ip_address.ip1.id]
 }
-`, name, name, testTenantID, name, status, name, testStatus, testVLAN, testIPAddress)
+`, name, vid, cidr, testTenantID, status, testStatus)
 }
 
-func testAccVMInterfaceConfigUpdated(name string) string {
+func testAccVMInterfaceConfigUpdated(name string, vid int, cidr string) string {
 	status := "Active"
 
 	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_vlan" "v" {
+  name   = "%[1]s-vlan"
+  vid    = %[2]d
+  status = "%[6]s"
+}
+
+resource "nautobot_prefix" "p" {
+  prefix  = "%[3]s"
+  status  = "%[6]s"
+  vlan_id = nautobot_vlan.v.id
+}
+
+resource "nautobot_available_ip_address" "ip1" {
+  prefix_id = nautobot_prefix.p.id
+  status    = "%[6]s"
+}
+
 resource "nautobot_cluster_type" "ct" {
-  name = "%s-ct"
+  name = "%[1]s-ct"
 }
 
 resource "nautobot_cluster" "cl" {
-  name            = "%s-cl"
+  name            = "%[1]s-cl"
   cluster_type_id = nautobot_cluster_type.ct.id
-  tenant_id       = "%s"
+  tenant_id       = "%[4]s"
 }
 
 resource "nautobot_virtual_machine" "vm" {
-  name       = "%s-vm"
+  name       = "%[1]s-vm"
   cluster_id = nautobot_cluster.cl.id
-  status     = "%s"
+  status     = "%[5]s"
 }
 
 resource "nautobot_vm_interface" "test" {
-  name               = "%s-if0-updated"
-  status             = "%s"
+  name               = "%[1]s-if0-updated"
+  status             = "%[6]s"
   virtual_machine_id = nautobot_virtual_machine.vm.id
 
   mac_address      = "AA:BB:CC:DD:EE:11"
@@ -106,10 +140,10 @@ resource "nautobot_vm_interface" "test" {
   mtu              = 9000
   description      = "updated by terraform acceptance test"
   mode             = "Tagged"
-  untagged_vlan_id = "%s"
-  ip_addresses     = ["%s"]
+  untagged_vlan_id = nautobot_vlan.v.id
+  ip_addresses     = [nautobot_available_ip_address.ip1.id]
 }
-`, name, name, testTenantID, name, status, name, testStatus, testVLAN, testIPAddress)
+`, name, vid, cidr, testTenantID, status, testStatus)
 }
 
 func testAccVMInterfaceConfigParallel(name string) string {
@@ -195,14 +229,17 @@ func TestAccVMInterfaceResource_minimal(t *testing.T) {
 func TestAccVMInterfaceResource_full(t *testing.T) {
 	t.Parallel()
 
-	name := fmt.Sprintf("tfacc-vm-if-full-%d", time.Now().Unix())
+	seed := testAccSeedForTest(t)
+	name := fmt.Sprintf("tfacc-vm-if-full-%d", seed)
+	vid := testAccVLANVid(seed, 20)
+	cidr := testAccPrefixCIDR(seed, 16)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMInterfaceConfigFull(name),
+				Config: testAccVMInterfaceConfigFull(name, vid, cidr),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
@@ -214,13 +251,9 @@ func TestAccVMInterfaceResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "description", "created by terraform acceptance test"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Access"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVLAN),
+					resource.TestCheckResourceAttrPair(vmInterfaceResourceName, "untagged_vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
-					resource.TestCheckTypeSetElemAttr(
-						vmInterfaceResourceName,
-						"ip_addresses.*",
-						testIPAddress,
-					),
+					testCheckTypeSetContainsResourceAttr(vmInterfaceResourceName, "ip_addresses", "nautobot_available_ip_address.ip1", "id"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "tags_ids.#", "0"),
 					resource.TestCheckResourceAttrSet(vmInterfaceResourceName, "id"),
@@ -237,14 +270,17 @@ func TestAccVMInterfaceResource_full(t *testing.T) {
 func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 	t.Parallel()
 
-	name := fmt.Sprintf("tfacc-vm-if-upd-%d", time.Now().Unix())
+	seed := testAccSeedForTest(t)
+	name := fmt.Sprintf("tfacc-vm-if-upd-%d", seed)
+	vid := testAccVLANVid(seed, 21)
+	cidr := testAccPrefixCIDR(seed, 17)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVMInterfaceConfigFull(name),
+				Config: testAccVMInterfaceConfigFull(name, vid, cidr),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
@@ -254,22 +290,18 @@ func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "description", "created by terraform acceptance test"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Access"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVLAN),
+					resource.TestCheckResourceAttrPair(vmInterfaceResourceName, "untagged_vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
-					resource.TestCheckTypeSetElemAttr(
-						vmInterfaceResourceName,
-						"ip_addresses.*",
-						testIPAddress,
-					),
+					testCheckTypeSetContainsResourceAttr(vmInterfaceResourceName, "ip_addresses", "nautobot_available_ip_address.ip1", "id"),
 				),
 			},
 			{
-				Config:             testAccVMInterfaceConfigUpdated(name),
+				Config:             testAccVMInterfaceConfigUpdated(name, vid, cidr),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config: testAccVMInterfaceConfigUpdated(name),
+				Config: testAccVMInterfaceConfigUpdated(name, vid, cidr),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "name", name+"-if0-updated"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "status", testStatus),
@@ -279,13 +311,9 @@ func TestAccVMInterfaceResource_updateAndDrift(t *testing.T) {
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "description", "updated by terraform acceptance test"),
 
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "mode", "Tagged"),
-					resource.TestCheckResourceAttr(vmInterfaceResourceName, "untagged_vlan_id", testVLAN),
+					resource.TestCheckResourceAttrPair(vmInterfaceResourceName, "untagged_vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(vmInterfaceResourceName, "ip_addresses.#", "1"),
-					resource.TestCheckTypeSetElemAttr(
-						vmInterfaceResourceName,
-						"ip_addresses.*",
-						testIPAddress,
-					),
+					testCheckTypeSetContainsResourceAttr(vmInterfaceResourceName, "ip_addresses", "nautobot_available_ip_address.ip1", "id"),
 				),
 			},
 			{

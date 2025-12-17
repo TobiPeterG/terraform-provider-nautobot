@@ -36,20 +36,8 @@ func int32Ptr(i int) *int32 {
 	return &val
 }
 
-func getStatusName(ctx context.Context, c *nb.APIClient, token string, statusID string) (string, error) {
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    token,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Fetch the status using the status ID
-	status, _, err := c.ExtrasAPI.ExtrasStatusesRetrieve(auth, statusID).Execute()
+func getStatusName(ctx context.Context, c *nb.APIClient, statusID string) (string, error) {
+	status, _, err := c.ExtrasAPI.ExtrasStatusesRetrieve(ctx, statusID).Execute()
 	if err != nil {
 		return "", err
 	}
@@ -61,19 +49,8 @@ func getStatusName(ctx context.Context, c *nb.APIClient, token string, statusID 
 	return "", fmt.Errorf("status name not found for ID %s", statusID)
 }
 
-func getStatusID(ctx context.Context, c *nb.APIClient, token string, statusName string) (string, error) {
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    token,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	statuses, _, err := c.ExtrasAPI.ExtrasStatusesList(auth).Name([]string{statusName}).Execute()
+func getStatusID(ctx context.Context, c *nb.APIClient, statusName string) (string, error) {
+	statuses, _, err := c.ExtrasAPI.ExtrasStatusesList(ctx).Name([]string{statusName}).Execute()
 	if err != nil {
 		return "", err
 	}

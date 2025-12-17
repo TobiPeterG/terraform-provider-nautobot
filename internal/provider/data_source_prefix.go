@@ -178,7 +178,6 @@ func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 
 	c := d.client.Client
-	token := d.client.Token
 
 	idStr := data.ID.ValueString()
 	vlanIDStr := data.VLANID.ValueString()
@@ -279,7 +278,7 @@ func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	statusName := ""
 	if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
 		if statusID := *prefix.Status.Id.String; statusID != "" {
-			if name, err := getStatusName(ctx, c, token, statusID); err == nil {
+			if name, err := getStatusName(ctx, c, statusID); err == nil {
 				statusName = name
 			}
 		}

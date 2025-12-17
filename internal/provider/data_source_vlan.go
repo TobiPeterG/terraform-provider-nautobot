@@ -145,7 +145,6 @@ func (d *VLANDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	}
 
 	c := d.client.Client
-	token := d.client.Token
 
 	vlanName := data.Name.ValueString()
 
@@ -213,7 +212,7 @@ func (d *VLANDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
 		statusID := *vlan.Status.Id.String
 		if statusID != "" {
-			if name, err := getStatusName(ctx, c, token, statusID); err == nil {
+			if name, err := getStatusName(ctx, c, statusID); err == nil {
 				statusName = name
 			}
 		}

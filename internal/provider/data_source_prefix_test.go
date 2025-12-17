@@ -3,7 +3,6 @@ package provider
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -12,41 +11,66 @@ const (
 	prefixDataSourceName = "data.nautobot_prefix.test"
 )
 
-func testAccPrefixDataSourceConfigByID() string {
+func testAccPrefixDataSourceConfigByID(prefixCIDR string, baseName string, baseVid int) string {
 	return testAccProviderConfig() + fmt.Sprintf(`
-data "nautobot_prefix" "test" {
-  id = "%[1]s"
-}
-`, testPrefixID)
+resource "nautobot_vlan" "v" {
+  name   = "%[2]s-vlan"
+  vid    = %[3]d
+  status = "%[4]s"
 }
 
-func testAccPrefixDataSourceConfigByVLAN(prefixCIDR string) string {
+resource "nautobot_prefix" "test" {
+  prefix      = "%[1]s"
+  status      = "%[4]s"
+  vlan_id     = nautobot_vlan.v.id
+  description = "created by terraform acceptance test"
+  tenant_id   = "%[5]s"
+}
+
+data "nautobot_prefix" "test" {
+  id = nautobot_prefix.test.id
+}
+`, prefixCIDR, baseName, baseVid, testStatus, testTenantID)
+}
+
+func testAccPrefixDataSourceConfigByVLAN(prefixCIDR string, baseName string, baseVid int) string {
 	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_vlan" "v" {
+  name   = "%[2]s-vlan"
+  vid    = %[3]d
+  status = "%[4]s"
+}
+
 resource "nautobot_prefix" "test" {
   prefix    = "%[1]s"
-  status    = "%[2]s"
-  vlan_id   = "%[3]s"
-  tenant_id = "%[4]s"
+  status    = "%[4]s"
+  vlan_id   = nautobot_vlan.v.id
+  tenant_id = "%[5]s"
 }
 
 data "nautobot_prefix" "test" {
   depends_on = [nautobot_prefix.test]
   vlan_id = nautobot_prefix.test.vlan_id
 }
-`, prefixCIDR, testStatus, testVLAN, testTenantID)
+`, prefixCIDR, baseName, baseVid, testStatus, testTenantID)
 }
 
 func TestAccPrefixDataSource_byID(t *testing.T) {
 	t.Parallel()
+
+	seed := testAccSeedForTest(t)
+	baseName := fmt.Sprintf("tfacc-ds-prefix-byid-%d", seed)
+	baseVid := testAccVLANVid(seed, 3)
+	prefixCIDR := testAccPrefixCIDR(seed, 22)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPrefixDataSourceConfigByID(),
+				Config: testAccPrefixDataSourceConfigByID(prefixCIDR, baseName, baseVid),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(prefixDataSourceName, "id", testPrefixID),
+					resource.TestCheckResourceAttrSet(prefixDataSourceName, "id"),
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "prefix"),
 
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "created"),
@@ -62,13 +86,13 @@ func TestAccPrefixDataSource_byID(t *testing.T) {
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "natural_slug"),
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "notes_url"),
 
-					resource.TestCheckResourceAttr(prefixDataSourceName, "description", ""),
+					resource.TestCheckResourceAttr(prefixDataSourceName, "description", "created by terraform acceptance test"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "parent_id", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "role_id", ""),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", ""),
+					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", testTenantID),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "rir_id", ""),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "namespace_id", ""),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "vlan_id", ""),
+					resource.TestCheckResourceAttrSet(prefixDataSourceName, "namespace_id"),
+					resource.TestCheckResourceAttrPair(prefixDataSourceName, "vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "date_allocated", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "tags_ids.#", "0"),
 				),
@@ -83,17 +107,20 @@ func TestAccPrefixDataSource_byID(t *testing.T) {
 func TestAccPrefixDataSource_byVLAN(t *testing.T) {
 	t.Parallel()
 
-	prefixCIDR := fmt.Sprintf("10.250.%d.0/24", int(time.Now().Unix()%200)+1)
+	seed := testAccSeedForTest(t)
+	baseName := fmt.Sprintf("tfacc-ds-prefix-byvlan-%d", seed)
+	baseVid := testAccVLANVid(seed, 4)
+	prefixCIDR := testAccPrefixCIDR(seed, 23)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPrefixDataSourceConfigByVLAN(prefixCIDR),
+				Config: testAccPrefixDataSourceConfigByVLAN(prefixCIDR, baseName, baseVid),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "id"),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "vlan_id", testVLAN),
+					resource.TestCheckResourceAttrPair(prefixDataSourceName, "vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "prefix", prefixCIDR),
 
 					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", testTenantID),
@@ -102,7 +129,7 @@ func TestAccPrefixDataSource_byVLAN(t *testing.T) {
 					resource.TestCheckResourceAttr(prefixDataSourceName, "parent_id", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "role_id", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "rir_id", ""),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "namespace_id", ""),
+					resource.TestCheckResourceAttrSet(prefixDataSourceName, "namespace_id"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "date_allocated", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "tags_ids.#", "0"),
 
