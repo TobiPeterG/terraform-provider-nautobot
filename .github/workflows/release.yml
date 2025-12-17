@@ -19,6 +19,7 @@ on:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +43,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v4.2.0
         with:
           version: latest
-          args: release --clean
+          args: release --clean --parallelism=1 --timeout 60m
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
