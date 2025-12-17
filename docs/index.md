@@ -13,9 +13,18 @@ description: |-
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    nautobot = {
+      version = "3.0.0-beta"
+      source  = "github.com/nautobot/nautobot"
+    }
+  }
+}
+
 provider "nautobot" {
-  url   = "https://demo.nautobot.com/api/"
-  token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  url   = "https://my.instance.com/api"
+  token = "MyAPIToken0000abcdefghijklmnopqrstuvwxyz"
 }
 ```
 
