@@ -9,6 +9,15 @@ OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
 # Inject VERSION into main.version
 LDFLAGS=-X 'main.version=$(VERSION)'
 
+# Pick a CLI automatically (prefer OpenTofu if present), or let the caller override:
+#   make testacc TFCLI=terraform
+#   make testacc TFCLI=tofu
+TFCLI?=$(shell command -v tofu >/dev/null 2>&1 && echo tofu || echo terraform)
+TFCLI_ABS:=$(shell command -v $(TFCLI) 2>/dev/null)
+
+# Optional: stable plugin cache (avoids repeated provider/module downloads)
+TF_PLUGIN_CACHE_DIR?=$(CURDIR)/.terraform.d/plugin-cache
+
 default: install
 
 build:
@@ -37,7 +46,23 @@ test:
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
 testacc:
-	TF_ACC=1 go test -p 1 $(TEST) -v $(TESTARGS) -timeout 120m
+	@if command -v tofu >/dev/null 2>&1; then \
+		cli=tofu; \
+	elif command -v terraform >/dev/null 2>&1; then \
+		cli=terraform; \
+	else \
+		echo "Error: neither 'tofu' nor 'terraform' found in PATH."; \
+		exit 1; \
+	fi; \
+	abs=$$(command -v $$cli); \
+	mkdir -p "$(TF_PLUGIN_CACHE_DIR)"; \
+	echo "Using $$cli ($$abs)"; \
+	TF_ACC=1 \
+	TF_ACC_TERRAFORM_PATH="$$abs" \
+	TF_PLUGIN_CACHE_DIR="$(TF_PLUGIN_CACHE_DIR)" \
+	TF_ACC_PROVIDER_NAMESPACE="hashicorp" \
+	TF_ACC_PROVIDER_HOST="registry.opentofu.org" \
+	go test -p 1 $(TEST) -v $(TESTARGS) -timeout 120m
 
 local: install
 	sed -i "s|version =.*|version = \"${VERSION}\"|" test/provider.tf
