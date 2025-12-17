@@ -25,7 +25,7 @@ This object manages a VM Interface in Nautobot
 
 - `description` (String) Description of the interface.
 - `enabled` (Boolean) Whether the interface is enabled.
-- `ip_addresses` (List of String) List of IP address IDs to assign to the VM interface.
+- `ip_addresses` (Set of String) List of IP address IDs to assign to the VM interface.
 - `mac_address` (String) MAC address of the interface.
 - `mode` (String) Mode of the interface.
 - `mtu` (Number) MTU size of the interface.
