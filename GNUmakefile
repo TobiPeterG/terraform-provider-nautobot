@@ -3,7 +3,7 @@ HOSTNAME=github.com
 NAMESPACE=nautobot
 NAME=nautobot
 BINARY=terraform-provider-${NAME}
-VERSION=3.0.0
+VERSION=3.0.1
 OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
 
 LDFLAGS=-X 'main.version=$(VERSION)'
