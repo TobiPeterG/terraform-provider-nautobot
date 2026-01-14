@@ -109,11 +109,21 @@ func randomBackoff(attempt int) time.Duration {
 		attempt = 0
 	}
 
-	base := 1 * time.Millisecond
-	maxJitter := 200 * time.Millisecond
+	const (
+		base     = 250 * time.Millisecond
+		capDelay = 20 * time.Second
+	)
 
-	backoff := time.Duration(attempt+1) * base
-	jitter := time.Duration(rand.Int63n(int64(maxJitter)))
+	backoff := base << attempt
+	if backoff > capDelay {
+		backoff = capDelay
+	}
+
+	jitterMax := backoff / 2
+	if jitterMax <= 0 {
+		return backoff
+	}
+	jitter := time.Duration(rand.Int63n(int64(jitterMax)))
 
 	return backoff + jitter
 }
@@ -150,7 +160,7 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	// Remove when https://github.com/nautobot/nautobot/issues/8297 is fixed.
-	const maxRetries = 5
+	const maxRetries = 10
 	var alloc []nb.IPAddress
 	var httpResp *http.Response
 
