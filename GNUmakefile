@@ -3,7 +3,7 @@ HOSTNAME=github.com
 NAMESPACE=nautobot
 NAME=nautobot
 BINARY=terraform-provider-${NAME}
-VERSION=3.0.1
+VERSION=3.0.2
 OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
 
 LDFLAGS=-X 'main.version=$(VERSION)'
@@ -20,6 +20,8 @@ PYTHON_VER?=3.12
 TF_TOOL?=opentofu
 TF_VERSION?=1.11.1
 TF_TARGET?=$(if $(filter opentofu,$(TF_TOOL)),with-opentofu,with-terraform)
+
+.PHONY: docs
 
 default: install
 
@@ -103,6 +105,7 @@ local: install
 docs:
 	sed -i "s|version =.*|version = \"${VERSION}\"|" README.md
 	sed -i "s|version =.*|version = \"${VERSION}\"|" examples/provider/provider.tf
+	sed -i "s|version =.*|version = \"${VERSION}\"|" local/provider.tf
 	go generate ./...
 
 tag: local
