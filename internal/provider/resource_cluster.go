@@ -225,7 +225,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	model, diags := r.readModel(ctx, *out.Id)
+	model, _, diags := r.readModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -240,9 +240,19 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	model, diags := r.readModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -361,7 +371,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	model, diags := r.readModel(ctx, id)
+	model, _, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -389,15 +399,21 @@ func (r *ClusterResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *ClusterResource) readModel(ctx context.Context, id string) (clusterModel, diag.Diagnostics) {
+func (r *ClusterResource) readModel(ctx context.Context, id string) (clusterModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	if id == "" {
+		return clusterModel{}, false, diags
+	}
 
 	cl, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationClustersRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return clusterModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read cluster", httpErr(err, httpResp))
-		return clusterModel{}, diags
+		return clusterModel{}, false, diags
 	}
 
 	var m clusterModel
@@ -464,5 +480,5 @@ func (r *ClusterResource) readModel(ctx context.Context, id string) (clusterMode
 		m.Created = types.StringNull()
 	}
 
-	return m, diags
+	return m, true, diags
 }

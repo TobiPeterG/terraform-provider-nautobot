@@ -134,7 +134,7 @@ func (r *ManufacturerResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	model, diags := r.readModel(ctx, *out.Id)
+	model, _, diags := r.readModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -151,9 +151,19 @@ func (r *ManufacturerResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	model, diags := r.readModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -196,7 +206,7 @@ func (r *ManufacturerResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	model, diags := r.readModel(ctx, id)
+	model, _, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -226,15 +236,21 @@ func (r *ManufacturerResource) ImportState(ctx context.Context, req resource.Imp
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *ManufacturerResource) readModel(ctx context.Context, id string) (manufacturerModel, diag.Diagnostics) {
+func (r *ManufacturerResource) readModel(ctx context.Context, id string) (manufacturerModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	if id == "" {
+		return manufacturerModel{}, false, diags
+	}
 
 	m, httpResp, err := r.client.Client.DcimAPI.
 		DcimManufacturersRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return manufacturerModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read manufacturer", httpErr(err, httpResp))
-		return manufacturerModel{}, diags
+		return manufacturerModel{}, false, diags
 	}
 
 	var out manufacturerModel
@@ -259,5 +275,5 @@ func (r *ManufacturerResource) readModel(ctx context.Context, id string) (manufa
 	out.NotesURL = types.StringValue(m.NotesUrl)
 
 	tflog.Debug(ctx, "read manufacturer", map[string]any{"id": id})
-	return out, diags
+	return out, true, diags
 }

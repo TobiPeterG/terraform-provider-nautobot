@@ -291,7 +291,7 @@ func (r *VirtualMachineResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, *out.Id)
+	model, _, diags := r.buildStateModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -306,9 +306,19 @@ func (r *VirtualMachineResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.buildStateModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -458,7 +468,7 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, vmId)
+	model, _, diags := r.buildStateModel(ctx, vmId)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -486,15 +496,21 @@ func (r *VirtualMachineResource) ImportState(ctx context.Context, req resource.I
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string) (vmModel, diag.Diagnostics) {
+func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string) (vmModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	if id == "" {
+		return vmModel{}, false, diags
+	}
 
 	vm, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationVirtualMachinesRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return vmModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read virtual machine", httpErr(err, httpResp))
-		return vmModel{}, diags
+		return vmModel{}, false, diags
 	}
 
 	var m vmModel
@@ -602,5 +618,5 @@ func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string)
 	}
 
 	tflog.Debug(ctx, "read VM", map[string]any{"id": id})
-	return m, diags
+	return m, true, diags
 }

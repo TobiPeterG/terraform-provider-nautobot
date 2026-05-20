@@ -134,7 +134,7 @@ func (r *ClusterTypeResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	model, diags := r.readModel(ctx, *out.Id)
+	model, _, diags := r.readModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -149,9 +149,19 @@ func (r *ClusterTypeResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	model, diags := r.readModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -193,7 +203,7 @@ func (r *ClusterTypeResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	model, diags := r.readModel(ctx, id)
+	model, _, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -221,15 +231,21 @@ func (r *ClusterTypeResource) ImportState(ctx context.Context, req resource.Impo
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *ClusterTypeResource) readModel(ctx context.Context, id string) (clusterTypeModel, diag.Diagnostics) {
+func (r *ClusterTypeResource) readModel(ctx context.Context, id string) (clusterTypeModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	if id == "" {
+		return clusterTypeModel{}, false, diags
+	}
 
 	ct, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationClusterTypesRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return clusterTypeModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read cluster type", httpErr(err, httpResp))
-		return clusterTypeModel{}, diags
+		return clusterTypeModel{}, false, diags
 	}
 
 	var m clusterTypeModel
@@ -253,5 +269,5 @@ func (r *ClusterTypeResource) readModel(ctx context.Context, id string) (cluster
 
 	m.NotesURL = types.StringValue(ct.NotesUrl)
 
-	return m, diags
+	return m, true, diags
 }

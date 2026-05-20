@@ -203,7 +203,7 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	model, diags := r.readModel(ctx, *alloc[0].Id, plan.PrefixID.ValueString())
+	model, _, diags := r.readModel(ctx, *alloc[0].Id, plan.PrefixID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -218,9 +218,19 @@ func (r *AvailableIPAddressResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	model, diags := r.readModel(ctx, state.ID.ValueString(), state.PrefixID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -274,7 +284,7 @@ func (r *AvailableIPAddressResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	model, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
+	model, _, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -302,15 +312,21 @@ func (r *AvailableIPAddressResource) ImportState(ctx context.Context, req resour
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, prefixID string) (availableIPModel, diag.Diagnostics) {
+func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, prefixID string) (availableIPModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	if id == "" {
+		return availableIPModel{}, false, diags
+	}
 
 	ip, httpResp, err := r.client.Client.IpamAPI.
 		IpamIpAddressesRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return availableIPModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read IP address", httpErr(err, httpResp))
-		return availableIPModel{}, diags
+		return availableIPModel{}, false, diags
 	}
 
 	// Try to derive prefixID from parent if not provided
@@ -342,5 +358,5 @@ func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, p
 	}
 	m.Status = types.StringValue(statusName)
 
-	return m, diags
+	return m, true, diags
 }

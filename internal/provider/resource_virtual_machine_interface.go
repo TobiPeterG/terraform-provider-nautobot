@@ -328,7 +328,7 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 		}
 	}
 
-	model, diags := r.readModel(ctx, *created.Id)
+	model, _, diags := r.readModel(ctx, *created.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -344,9 +344,19 @@ func (r *VMInterfaceResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	model, diags := r.readModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -498,7 +508,7 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 			return
 		}
 
-		currentModel, diags := r.readModel(ctx, id)
+		currentModel, _, diags := r.readModel(ctx, id)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -530,7 +540,7 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 		}
 	}
 
-	model, diags := r.readModel(ctx, id)
+	model, _, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -559,15 +569,21 @@ func (r *VMInterfaceResource) ImportState(ctx context.Context, req resource.Impo
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInterfaceModel, diag.Diagnostics) {
+func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInterfaceModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	if id == "" {
+		return vmInterfaceModel{}, false, diags
+	}
 
 	ifc, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationInterfacesRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return vmInterfaceModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read VM interface", httpErr(err, httpResp))
-		return vmInterfaceModel{}, diags
+		return vmInterfaceModel{}, false, diags
 	}
 
 	var m vmInterfaceModel
@@ -641,7 +657,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 			Execute()
 		if err2 != nil {
 			diags.AddError("failed to list IP assignments for VM interface", httpErr(err2, httpResp2))
-			return vmInterfaceModel{}, diags
+			return vmInterfaceModel{}, false, diags
 		}
 
 		if len(ipRels.Results) > 0 {
@@ -674,7 +690,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 	}
 
 	tflog.Debug(ctx, "read VM interface", map[string]any{"id": id})
-	return m, diags
+	return m, true, diags
 }
 
 func (r *VMInterfaceResource) assignIPAddressToVMInterface(ctx context.Context, ipAddressID, vmInterfaceID string) error {
