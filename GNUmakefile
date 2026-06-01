@@ -21,7 +21,7 @@ TF_TOOL?=opentofu
 TF_VERSION?=1.11.1
 TF_TARGET?=$(if $(filter opentofu,$(TF_TOOL)),with-opentofu,with-terraform)
 
-.PHONY: docs
+.PHONY: docs test
 
 default: install
 

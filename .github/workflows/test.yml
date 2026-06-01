@@ -46,6 +46,12 @@ jobs:
       - name: Get dependencies
         run: go mod download
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.2"
+          terraform_wrapper: false
+
       - name: Generate
         run: go generate ./...
 
