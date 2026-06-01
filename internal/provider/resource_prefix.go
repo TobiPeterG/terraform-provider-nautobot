@@ -329,9 +329,13 @@ func (r *PrefixResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	model, _, diags := r.buildStateModel(ctx, *out.Id)
+	model, found, diags := r.buildStateModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read prefix", "created prefix was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -473,9 +477,13 @@ func (r *PrefixResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	model, _, diags := r.buildStateModel(ctx, id)
+	model, found, diags := r.buildStateModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read prefix", "updated prefix was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -503,9 +511,6 @@ func (r *PrefixResource) ImportState(ctx context.Context, req resource.ImportSta
 
 func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefixModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return prefixModel{}, false, diags
-	}
 
 	p, httpResp, err := r.client.Client.IpamAPI.
 		IpamPrefixesRetrieve(ctx, id).

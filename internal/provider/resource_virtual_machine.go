@@ -291,9 +291,13 @@ func (r *VirtualMachineResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	model, _, diags := r.buildStateModel(ctx, *out.Id)
+	model, found, diags := r.buildStateModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read virtual machine", "created virtual machine was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -468,9 +472,13 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	model, _, diags := r.buildStateModel(ctx, vmId)
+	model, found, diags := r.buildStateModel(ctx, vmId)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read virtual machine", "updated virtual machine was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -498,9 +506,6 @@ func (r *VirtualMachineResource) ImportState(ctx context.Context, req resource.I
 
 func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string) (vmModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return vmModel{}, false, diags
-	}
 
 	vm, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationVirtualMachinesRetrieve(ctx, id).

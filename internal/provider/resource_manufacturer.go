@@ -134,9 +134,13 @@ func (r *ManufacturerResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, *out.Id)
+	model, found, diags := r.readModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read manufacturer", "created manufacturer was not found")
 		return
 	}
 
@@ -206,9 +210,13 @@ func (r *ManufacturerResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, id)
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read manufacturer", "updated manufacturer was not found")
 		return
 	}
 
@@ -238,9 +246,6 @@ func (r *ManufacturerResource) ImportState(ctx context.Context, req resource.Imp
 
 func (r *ManufacturerResource) readModel(ctx context.Context, id string) (manufacturerModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return manufacturerModel{}, false, diags
-	}
 
 	m, httpResp, err := r.client.Client.DcimAPI.
 		DcimManufacturersRetrieve(ctx, id).

@@ -280,9 +280,13 @@ func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	model, _, diags := r.buildStateModel(ctx, *out.Id)
+	model, found, diags := r.buildStateModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read vlan", "created vlan was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -429,9 +433,13 @@ func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	model, _, diags := r.buildStateModel(ctx, vlanID)
+	model, found, diags := r.buildStateModel(ctx, vlanID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read vlan", "updated vlan was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -459,9 +467,6 @@ func (r *VLANResource) ImportState(ctx context.Context, req resource.ImportState
 
 func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return vlanModel{}, false, diags
-	}
 
 	v, httpResp, err := r.client.Client.IpamAPI.
 		IpamVlansRetrieve(ctx, id).

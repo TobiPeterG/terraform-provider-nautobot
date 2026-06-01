@@ -134,9 +134,13 @@ func (r *ClusterTypeResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, *out.Id)
+	model, found, diags := r.readModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read cluster type", "created cluster type was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -203,9 +207,13 @@ func (r *ClusterTypeResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, id)
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read cluster type", "updated cluster type was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -233,9 +241,6 @@ func (r *ClusterTypeResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *ClusterTypeResource) readModel(ctx context.Context, id string) (clusterTypeModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return clusterTypeModel{}, false, diags
-	}
 
 	ct, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationClusterTypesRetrieve(ctx, id).

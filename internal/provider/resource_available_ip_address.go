@@ -203,9 +203,13 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, *alloc[0].Id, plan.PrefixID.ValueString())
+	model, found, diags := r.readModel(ctx, *alloc[0].Id, plan.PrefixID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read IP address", "created IP address was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -284,9 +288,13 @@ func (r *AvailableIPAddressResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
+	model, found, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read IP address", "updated IP address was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -314,9 +322,6 @@ func (r *AvailableIPAddressResource) ImportState(ctx context.Context, req resour
 
 func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, prefixID string) (availableIPModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return availableIPModel{}, false, diags
-	}
 
 	ip, httpResp, err := r.client.Client.IpamAPI.
 		IpamIpAddressesRetrieve(ctx, id).

@@ -130,9 +130,13 @@ func (r *VMPrimaryIPResource) Create(ctx context.Context, req resource.CreateReq
 
 	_ = resp.State.SetAttribute(ctx, path.Root("id"), vmID)
 
-	model, _, diags := r.readModel(ctx, vmID)
+	model, found, diags := r.readModel(ctx, vmID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read virtual machine", "virtual machine was not found after setting primary IP addresses")
 		return
 	}
 	tflog.Debug(ctx, "primary IPs set for VM", map[string]any{"vm_id": vmID})
@@ -226,9 +230,13 @@ func (r *VMPrimaryIPResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	model, _, diags := r.readModel(ctx, vmID)
+	model, found, diags := r.readModel(ctx, vmID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read virtual machine", "virtual machine was not found after updating primary IP addresses")
 		return
 	}
 	tflog.Debug(ctx, "primary IPs updated for VM", map[string]any{"vm_id": vmID})
@@ -269,9 +277,6 @@ func (r *VMPrimaryIPResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *VMPrimaryIPResource) readModel(ctx context.Context, vmID string) (VMPrimaryIPModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if vmID == "" {
-		return VMPrimaryIPModel{}, false, diags
-	}
 
 	vm, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationVirtualMachinesRetrieve(ctx, vmID).

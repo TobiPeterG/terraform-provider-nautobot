@@ -328,9 +328,13 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 		}
 	}
 
-	model, _, diags := r.readModel(ctx, *created.Id)
+	model, found, diags := r.readModel(ctx, *created.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read VM interface", "created VM interface was not found")
 		return
 	}
 	tflog.Debug(ctx, "vm interface created", map[string]any{"id": *created.Id, "name": plan.Name.ValueString()})
@@ -508,9 +512,13 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 			return
 		}
 
-		currentModel, _, diags := r.readModel(ctx, id)
+		currentModel, found, diags := r.readModel(ctx, id)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
+			return
+		}
+		if !found {
+			resp.Diagnostics.AddError("failed to read VM interface", "updated VM interface was not found")
 			return
 		}
 
@@ -540,9 +548,13 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 		}
 	}
 
-	model, _, diags := r.readModel(ctx, id)
+	model, found, diags := r.readModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read VM interface", "updated VM interface was not found")
 		return
 	}
 	tflog.Debug(ctx, "vm interface updated", map[string]any{"id": id})
@@ -571,9 +583,6 @@ func (r *VMInterfaceResource) ImportState(ctx context.Context, req resource.Impo
 
 func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInterfaceModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if id == "" {
-		return vmInterfaceModel{}, false, diags
-	}
 
 	ifc, httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationInterfacesRetrieve(ctx, id).
