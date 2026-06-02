@@ -329,9 +329,13 @@ func (r *PrefixResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, *out.Id)
+	model, found, diags := r.buildStateModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read prefix", "created prefix was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -344,9 +348,19 @@ func (r *PrefixResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.buildStateModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -463,9 +477,13 @@ func (r *PrefixResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, id)
+	model, found, diags := r.buildStateModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read prefix", "updated prefix was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -491,15 +509,18 @@ func (r *PrefixResource) ImportState(ctx context.Context, req resource.ImportSta
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefixModel, diag.Diagnostics) {
+func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefixModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	p, httpResp, err := r.client.Client.IpamAPI.
 		IpamPrefixesRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return prefixModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read prefix", httpErr(err, httpResp))
-		return prefixModel{}, diags
+		return prefixModel{}, false, diags
 	}
 
 	var m prefixModel
@@ -595,5 +616,5 @@ func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefix
 	m.NotesURL = types.StringValue(p.NotesUrl)
 
 	tflog.Debug(ctx, "read Prefix", map[string]any{"id": id})
-	return m, diags
+	return m, true, diags
 }

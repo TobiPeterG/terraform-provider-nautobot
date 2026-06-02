@@ -280,9 +280,13 @@ func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, *out.Id)
+	model, found, diags := r.buildStateModel(ctx, *out.Id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read vlan", "created vlan was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -295,9 +299,19 @@ func (r *VLANResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, state.ID.ValueString())
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.buildStateModel(ctx, id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -419,9 +433,13 @@ func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	model, diags := r.buildStateModel(ctx, vlanID)
+	model, found, diags := r.buildStateModel(ctx, vlanID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read vlan", "updated vlan was not found")
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
@@ -447,15 +465,18 @@ func (r *VLANResource) ImportState(ctx context.Context, req resource.ImportState
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanModel, diag.Diagnostics) {
+func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	v, httpResp, err := r.client.Client.IpamAPI.
 		IpamVlansRetrieve(ctx, id).
 		Execute()
+	if isNotFoundResponse(httpResp) {
+		return vlanModel{}, false, diags
+	}
 	if err != nil {
 		diags.AddError("failed to read vlan", httpErr(err, httpResp))
-		return vlanModel{}, diags
+		return vlanModel{}, false, diags
 	}
 
 	var m vlanModel
@@ -532,5 +553,5 @@ func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanMode
 	m.NotesURL = types.StringValue(v.NotesUrl)
 
 	tflog.Debug(ctx, "read VLAN", map[string]any{"id": id})
-	return m, diags
+	return m, true, diags
 }
