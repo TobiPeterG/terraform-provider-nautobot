@@ -36,6 +36,10 @@ func int32Ptr(i int) *int32 {
 	return &val
 }
 
+func isNotFoundResponse(resp *http.Response) bool {
+	return resp != nil && resp.StatusCode == http.StatusNotFound
+}
+
 func getStatusName(ctx context.Context, c *nb.APIClient, statusID string) (string, error) {
 	status, _, err := c.ExtrasAPI.ExtrasStatusesRetrieve(ctx, statusID).Execute()
 	if err != nil {
