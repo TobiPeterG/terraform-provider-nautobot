@@ -11,7 +11,10 @@
     {
       "automerge": true,
       "matchUpdateTypes": [
-        "patch"
+        "minor",
+        "patch",
+        "pin",
+        "digest"
       ]
     },
     {
