@@ -7,6 +7,21 @@
   "labels": [
     "dependencies"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)README\\.md$/"
+      ],
+      "matchStrings": [
+        "\\s*\n- \\[[^\\]]+\\]\\([^\\)]+\\) >= (?[^\\s]+)"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ],
+  "ignorePaths": [
+    "local/provider.tf"
+  ],
   "packageRules": [
     {
       "automerge": true,

@@ -2,8 +2,17 @@
 
 ## Requirements
 
-- [Terraform](https://www.terraform.io/downloads.html) >= 1.13.5 or [OpenTofu](https://opentofu.org/docs/intro/install/) >= 1.10.8
-- [Go](https://golang.org/doc/install) >= 1.24.X
+<!-- renovate: datasource=github-releases depName=hashicorp/terraform versioning=hashicorp extractVersion=^v(?<version>.*)$ -->
+
+* [Terraform](https://www.terraform.io/downloads.html) >= 1.13.5
+
+<!-- renovate: datasource=github-releases depName=opentofu/opentofu versioning=semver extractVersion=^v(?<version>.*)$ -->
+
+* [OpenTofu](https://opentofu.org/docs/intro/install/) >= 1.10.8
+
+<!-- renovate: datasource=golang-version depName=go versioning=semver -->
+
+* [Go](https://golang.org/doc/install) >= 1.24.0
 
 ## Building The Provider
 
