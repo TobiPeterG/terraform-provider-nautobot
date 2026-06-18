@@ -40,5 +40,3 @@ output "data_cluster" {
 - `location_id` (String) The ID of the location associated with the cluster.
 - `tags_ids` (List of String) The IDs of the tags associated with the cluster.
 - `tenant_id` (String) The ID of the tenant associated with the cluster.
-
-

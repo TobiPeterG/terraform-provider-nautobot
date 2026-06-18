@@ -67,5 +67,3 @@ output "data_prefix_parent" {
 - `tags_ids` (List of String) The IDs of the tags associated with the prefix.
 - `tenant_id` (String) The ID of the tenant associated with the prefix.
 - `url` (String) API URL of the prefix.
-
-

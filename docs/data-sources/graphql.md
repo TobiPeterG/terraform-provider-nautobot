@@ -47,5 +47,3 @@ output "data_graphql_example" {
 ### Read-Only
 
 - `data` (String) The data returned by the GraphQL query (JSON-encoded GraphQL `data` field).
-
-

@@ -47,5 +47,3 @@ Read-Only:
 - `natural_slug` (String) Natural slug for the Manufacturer.
 - `notes_url` (String) Notes URL for the Manufacturer.
 - `url` (String) URL of the Manufacturer.
-
-

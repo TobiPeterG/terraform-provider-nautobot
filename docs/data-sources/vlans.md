@@ -50,5 +50,3 @@ Read-Only:
 - `url` (String) API URL of the VLAN.
 - `vid` (Number) The ID (VID) of the VLAN.
 - `vlan_group_id` (String) The ID of the VLAN group.
-
-
