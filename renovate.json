@@ -10,12 +10,12 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update Terraform version in README",
+      "description": "Update Terraform version used by hashicorp/setup-terraform",
       "managerFilePatterns": [
-        "/(^|/)README\\.md$/"
+        "/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "\\[Terraform\\]\\([^\\)]*\\) >= (?<currentValue>\\S+)"
+        "terraform_version:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "hashicorp/terraform",
       "datasourceTemplate": "github-releases",
@@ -24,36 +24,57 @@
     },
     {
       "customType": "regex",
-      "description": "Update OpenTofu version in README",
+      "description": "Update Terraform versions in workflow test matrix",
       "managerFilePatterns": [
-        "/(^|/)README\\.md$/"
+        "/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "\\[OpenTofu\\]\\([^\\)]*\\) >= (?<currentValue>\\S+)"
+        "-\\s+tool:\\s+terraform\\s*\\n\\s+version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "hashicorp/terraform",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "hashicorp",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Update OpenTofu versions in workflow test matrix",
+      "managerFilePatterns": [
+        "/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "-\\s+tool:\\s+opentofu\\s*\\n\\s+version:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "opentofu/opentofu",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "semver",
       "extractVersionTemplate": "^v(?<version>.*)$"
-    },
-    {
-      "customType": "regex",
-      "description": "Update Go version in README",
-      "managerFilePatterns": [
-        "/(^|/)README\\.md$/"
-      ],
-      "matchStrings": [
-        "\\[Go\\]\\([^\\)]*\\) >= (?<currentValue>\\S+)"
-      ],
-      "depNameTemplate": "go",
-      "datasourceTemplate": "golang-version",
-      "versioningTemplate": "semver"
     }
   ],
   "ignorePaths": [
     "local/provider.tf"
   ],
   "packageRules": [
+    {
+      "description": "Keep Terraform version references together",
+      "matchDepNames": [
+        "hashicorp/terraform"
+      ],
+      "matchDatasources": [
+        "github-releases"
+      ],
+      "groupName": "Terraform version"
+    },
+    {
+      "description": "Keep OpenTofu version references together",
+      "matchDepNames": [
+        "opentofu/opentofu"
+      ],
+      "matchDatasources": [
+        "github-releases"
+      ],
+      "groupName": "OpenTofu version"
+    },
     {
       "automerge": true,
       "matchUpdateTypes": [
