@@ -10,13 +10,44 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Update Terraform version in README",
       "managerFilePatterns": [
         "/(^|/)README\\.md$/"
       ],
       "matchStrings": [
-        "<!--\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?\\s*-->\\s*\\n- \\[[^\\]]+\\]\\([^\\)]+\\) >= (?<currentValue>[^\\s]+)"
+        "\\[Terraform\\]\\([^\\)]*\\) >= (?<currentValue>\\S+)"
       ],
-      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+      "depNameTemplate": "hashicorp/terraform",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "hashicorp",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Update OpenTofu version in README",
+      "managerFilePatterns": [
+        "/(^|/)README\\.md$/"
+      ],
+      "matchStrings": [
+        "\\[OpenTofu\\]\\([^\\)]*\\) >= (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "opentofu/opentofu",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Go version in README",
+      "managerFilePatterns": [
+        "/(^|/)README\\.md$/"
+      ],
+      "matchStrings": [
+        "\\[Go\\]\\([^\\)]*\\) >= (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
     }
   ],
   "ignorePaths": [
