@@ -8,7 +8,7 @@
 
 <!-- renovate: datasource=github-releases depName=opentofu/opentofu versioning=semver extractVersion=^v(?<version>.*)$ -->
 
-* [OpenTofu](https://opentofu.org/docs/intro/install/) >= 1.10.8
+* [OpenTofu](https://opentofu.org/docs/intro/install/) >= 1.12.2
 
 <!-- renovate: datasource=golang-version depName=go versioning=semver -->
 
