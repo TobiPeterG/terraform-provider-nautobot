@@ -12,7 +12,7 @@
 
 <!-- renovate: datasource=golang-version depName=go versioning=semver -->
 
-* [Go](https://golang.org/doc/install) >= 1.24.0
+* [Go](https://golang.org/doc/install) >= 1.26.4
 
 ## Building The Provider
 
