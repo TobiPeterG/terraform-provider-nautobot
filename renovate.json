@@ -14,7 +14,7 @@
         "/(^|/)README\\.md$/"
       ],
       "matchStrings": [
-        "\\s*\n- \\[[^\\]]+\\]\\([^\\)]+\\) >= (?[^\\s]+)"
+        "<!--\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?\\s*-->\\s*\\n- \\[[^\\]]+\\]\\([^\\)]+\\) >= (?<currentValue>[^\\s]+)"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     }
