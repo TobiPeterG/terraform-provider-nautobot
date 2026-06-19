@@ -42,7 +42,7 @@ services:
       retries: 10
 
   redis:
-    image: "redis:6-alpine"
+    image: "redis:8-alpine"
     command:
       - "sh"
       - "-c"
