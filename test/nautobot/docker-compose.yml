@@ -30,7 +30,7 @@ services:
     <<: *nautobot-base
 
   db:
-    image: "postgres:17-alpine"
+    image: "postgres:18-alpine"
     env_file:
       - "test/nautobot/nautobot_dev.env"
     volumes:
