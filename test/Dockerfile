@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
-ARG TF_VERSION=1.14.2
+ARG TF_VERSION=1.15.6
 
 FROM hashicorp/terraform:${TF_VERSION} AS terraform
 FROM ghcr.io/opentofu/opentofu:${TF_VERSION}-minimal AS tofu
 
-FROM golang:1.24-alpine AS base
+FROM golang:1.26-alpine AS base
 RUN apk add --no-cache ca-certificates curl unzip git jq bash gcompat make
 WORKDIR /workspace
 
