@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       target: ${TF_TARGET}
       args:
+        GO_VERSION: ${GO_VERSION}
         TF_VERSION: ${TF_VERSION}
     depends_on:
       nautobot:
