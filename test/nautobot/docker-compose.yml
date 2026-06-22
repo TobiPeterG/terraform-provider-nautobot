@@ -34,7 +34,7 @@ services:
     env_file:
       - "test/nautobot/nautobot_dev.env"
     volumes:
-      - "postgres_data:/var/lib/postgresql/data"
+      - "postgres_data:/var/lib/postgresql"
     healthcheck:
       test: "pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB"
       interval: "10s"
