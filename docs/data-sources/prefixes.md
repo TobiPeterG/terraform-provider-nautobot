@@ -56,5 +56,3 @@ Read-Only:
 - `tenant_id` (String) The ID of the tenant associated with the prefix.
 - `url` (String) API URL of the prefix.
 - `vlan_id` (String) The UUID of the VLAN the prefix belongs to.
-
-

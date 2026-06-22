@@ -44,5 +44,3 @@ Read-Only:
 - `name` (String) The name of the cluster.
 - `tags_ids` (List of String) The IDs of the tags associated with the cluster.
 - `tenant_id` (String) The ID of the tenant associated with the cluster.
-
-

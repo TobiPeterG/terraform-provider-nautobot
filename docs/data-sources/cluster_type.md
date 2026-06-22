@@ -39,5 +39,3 @@ output "data_cluster_type" {
 - `natural_slug` (String) Natural slug for the cluster type.
 - `notes_url` (String) Notes URL for the cluster type.
 - `url` (String) URL of the cluster type.
-
-

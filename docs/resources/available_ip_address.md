@@ -57,6 +57,8 @@ output "resource_available_ip_address" {
 
 Import is supported using the following syntax:
 
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
 ```shell
 #!/usr/bin/env sh
 # Available IPs can be imported using an IPs unique ID, e.g. '748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7'

@@ -39,5 +39,3 @@ output "data_manufacturer" {
 - `natural_slug` (String) Natural slug for the manufacturer.
 - `notes_url` (String) Notes URL for the manufacturer.
 - `url` (String) URL of the manufacturer.
-
-

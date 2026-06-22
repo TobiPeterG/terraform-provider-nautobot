@@ -46,5 +46,3 @@ output "data_virtual_machine" {
 - `tags_ids` (List of String) The IDs of the tags associated with the virtual machine.
 - `tenant_id` (String) The ID of the tenant associated with the virtual machine.
 - `vcpus` (Number) The number of virtual CPUs.
-
-

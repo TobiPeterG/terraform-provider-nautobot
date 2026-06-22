@@ -16,6 +16,7 @@ COMPOSE_CI_FILE?=test/docker-compose.yml
 
 NAUTOBOT_VER?=3.0.2
 PYTHON_VER?=3.12
+GO_VERSION?=$(shell awk '/^toolchain go/ {v=$$2; sub(/^go/, "", v)} /^go / {g=$$2} END {print v ? v : g}' go.mod)
 
 TF_TOOL?=opentofu
 TF_VERSION?=1.11.1
@@ -53,9 +54,11 @@ test:
 testacc-docker:
 	@mkdir -p "$(TF_PLUGIN_CACHE_DIR)"
 	@echo "Running acceptance tests via Docker Compose"
+	@echo "  GO_VERSION=$(GO_VERSION)"
 	@echo "  TF_TOOL=$(TF_TOOL) TF_VERSION=$(TF_VERSION) TF_TARGET=$(TF_TARGET)"
 	@echo "  NAUTOBOT_VER=$(NAUTOBOT_VER) PYTHON_VER=$(PYTHON_VER)"
-	@NAUTOBOT_VER="$(NAUTOBOT_VER)" \
+	@GO_VERSION="$(GO_VERSION)" \
+	  NAUTOBOT_VER="$(NAUTOBOT_VER)" \
 	  PYTHON_VER="$(PYTHON_VER)" \
 	  TF_TOOL="$(TF_TOOL)" \
 	  TF_VERSION="$(TF_VERSION)" \
@@ -64,7 +67,8 @@ testacc-docker:
 	    up --build --abort-on-container-exit --exit-code-from testrunner
 
 testacc-docker-down:
-	@NAUTOBOT_VER="$(NAUTOBOT_VER)" \
+	@GO_VERSION="$(GO_VERSION)" \
+	  NAUTOBOT_VER="$(NAUTOBOT_VER)" \
 	  PYTHON_VER="$(PYTHON_VER)" \
 	  TF_TOOL="$(TF_TOOL)" \
 	  TF_VERSION="$(TF_VERSION)" \

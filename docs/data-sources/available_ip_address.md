@@ -44,5 +44,3 @@ output "data_available_ip_address" {
 
 - `address` (String) The available IP address.
 - `ip_version` (Number) The version of the IP address (4 or 6).
-
-
