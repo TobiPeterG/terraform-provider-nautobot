@@ -147,6 +147,8 @@ func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resour
 		NewVirtualMachineResource,
 		NewVMInterfaceResource,
 		NewVMPrimaryIPResource,
+		NewTenantResource,
+		NewTenantGroupResource,
 		NewVLANResource,
 	}
 }
@@ -165,6 +167,10 @@ func (p *nautobotProvider) DataSources(_ context.Context) []func() datasource.Da
 		NewPrefixesDataSource,
 		NewVirtualMachineDataSource,
 		NewVirtualMachinesDataSource,
+		NewTenantDataSource,
+		NewTenantsDataSource,
+		NewTenantGroupDataSource,
+		NewTenantGroupsDataSource,
 		NewVLANDataSource,
 		NewVLANsDataSource,
 	}

@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	nb "github.com/nautobot/go-nautobot/v3"
 )
 
@@ -211,6 +213,50 @@ func stringify(v any) string {
 		b, _ := json.Marshal(s)
 		return string(b)
 	}
+}
+
+// derefStr safely dereferences a *string, returning "" if nil.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// nullableTimeStr formats a NullableTime as RFC3339 types.String.
+// Returns types.StringNull() when the value is not set or nil.
+func nullableTimeStr(t nb.NullableTime) types.String {
+	if t.IsSet() && t.Get() != nil {
+		return types.StringValue(t.Get().Format(time.RFC3339))
+	}
+	return types.StringNull()
+}
+
+// nullableFKStr extracts the UUID string from a NullableApprovalWorkflowUser FK.
+// Returns types.StringValue("") when not set or the nested ID is absent.
+func nullableFKStr(n nb.NullableApprovalWorkflowUser) types.String {
+	if n.IsSet() {
+		if v := n.Get(); v != nil && v.Id != nil && v.Id.String != nil {
+			return types.StringValue(*v.Id.String)
+		}
+	}
+	return types.StringValue("")
+}
+
+// makeFKUser builds a NullableApprovalWorkflowUser from a UUID string.
+// An empty id produces a set-but-nil FK (clears the relation on PATCH).
+func makeFKUser(id string) nb.NullableApprovalWorkflowUser {
+	var fk nb.NullableApprovalWorkflowUser
+	if id == "" {
+		fk.Set(nil)
+		return fk
+	}
+	fk.Set(&nb.ApprovalWorkflowUser{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+			String: stringPtr(id),
+		},
+	})
+	return fk
 }
 
 func sliceToSet(in []string) map[string]struct{} {

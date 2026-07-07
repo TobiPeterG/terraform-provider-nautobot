@@ -6,6 +6,7 @@ terraform.tfplan
 terraform.tfstate
 bin/
 dist/
+terraform-provider-nautobot_v*
 modules-dev/
 /pkg/
 website/.vagrant

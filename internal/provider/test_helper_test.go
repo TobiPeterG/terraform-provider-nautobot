@@ -355,3 +355,29 @@ func testCheckClusterTypeInListHasAttrs(dsAddr, ctName string, want map[string]s
 	requiredComputed := []string{"id", "display", "url", "natural_slug", "created", "last_updated", "notes_url"}
 	return testCheckListItemHasAttrs(dsAddr, "cluster_types", "name", ctName, want, requiredComputed)
 }
+
+func testCheckTenantsCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
+	return testCountAtLeast(dsAddr, "tenants", min)
+}
+
+func testFindTenantIndexByName(dsAddr, wantName string) resource.TestCheckFunc {
+	return testFindListIndexByAttr(dsAddr, "tenants", "name", wantName)
+}
+
+func testCheckTenantInListHasAttrs(dsAddr, tName string, want map[string]string) resource.TestCheckFunc {
+	requiredComputed := []string{"id", "display", "url", "natural_slug", "created", "last_updated", "notes_url"}
+	return testCheckListItemHasAttrs(dsAddr, "tenants", "name", tName, want, requiredComputed)
+}
+
+func testCheckTenantGroupsCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
+	return testCountAtLeast(dsAddr, "tenant_groups", min)
+}
+
+func testFindTenantGroupIndexByName(dsAddr, wantName string) resource.TestCheckFunc {
+	return testFindListIndexByAttr(dsAddr, "tenant_groups", "name", wantName)
+}
+
+func testCheckTenantGroupInListHasAttrs(dsAddr, tgName string, want map[string]string) resource.TestCheckFunc {
+	requiredComputed := []string{"id", "display", "url", "natural_slug", "created", "last_updated", "notes_url"}
+	return testCheckListItemHasAttrs(dsAddr, "tenant_groups", "name", tgName, want, requiredComputed)
+}
