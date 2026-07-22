@@ -40,7 +40,7 @@ export TF_ACC_PROVIDER_HOST TF_ACC_PROVIDER_NAMESPACE
 
 .DEFAULT_GOAL := install
 
-.PHONY: build docs fmt fmt-check install local release tag test testacc testacc-run \
+.PHONY: build docs fmt fmt-check install local release release-check tag test testacc testacc-run \
 	testacc-docker testacc-docker-down testacc-local testacc-local-up testacc-local-down
 
 build:
@@ -120,11 +120,22 @@ docs:
 	sed -i "s|version =.*|version = \"$(VERSION)\"|" README.md examples/provider/provider.tf local/provider.tf
 	go generate ./...
 
-tag:
+release-check:
 	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo "Error: refusing to tag a dirty working tree."; \
+		echo "Error: release checks require a clean working tree."; \
+		git status --short; \
 		exit 1; \
 	fi
+	@$(MAKE) fmt-check
+	@$(MAKE) docs
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Error: generated documentation is not up to date."; \
+		echo "Review and commit the following changes before tagging:"; \
+		git status --short; \
+		exit 1; \
+	fi
+
+tag: release-check
 	@if git rev-parse "v$(VERSION)" >/dev/null 2>&1; then \
 		echo "Error: tag v$(VERSION) already exists."; \
 		exit 1; \
