@@ -33,14 +33,13 @@ output "resource_tenant_group" {
 ### Optional
 
 - `description` (String) Tenant group's description.
-- `parent` (String) UUID of the parent tenant group.
+- `parent_id` (String) UUID of the parent tenant group.
 
 ### Read-Only
 
 - `created` (String) Tenant group's creation date (RFC3339).
 - `display` (String) Tenant group's display name.
 - `id` (String) Tenant group's UUID.
-- `last_updated` (String) Tenant group's last update date (RFC3339).
 - `natural_slug` (String) Natural slug for the tenant group.
 - `notes_url` (String) Notes URL for the tenant group.
 - `url` (String) Tenant group's URL.

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -21,22 +20,23 @@ type VirtualMachinesDataSource struct {
 }
 
 type virtualMachineItemModel struct {
-	ID           types.String `tfsdk:"id"`
-	Name         types.String `tfsdk:"name"`
-	ClusterID    types.String `tfsdk:"cluster_id"`
-	Status       types.String `tfsdk:"status"`
-	TenantID     types.String `tfsdk:"tenant_id"`
-	PlatformID   types.String `tfsdk:"platform_id"`
-	RoleID       types.String `tfsdk:"role_id"`
-	PrimaryIP4ID types.String `tfsdk:"primary_ip4_id"`
-	PrimaryIP6ID types.String `tfsdk:"primary_ip6_id"`
-	Vcpus        types.Int64  `tfsdk:"vcpus"`
-	Memory       types.Int64  `tfsdk:"memory"`
-	Disk         types.Int64  `tfsdk:"disk"`
-	Comments     types.String `tfsdk:"comments"`
-	TagsIDs      types.List   `tfsdk:"tags_ids"`
-	Created      types.String `tfsdk:"created"`
-	LastUpdated  types.String `tfsdk:"last_updated"`
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	ClusterID         types.String `tfsdk:"cluster_id"`
+	Status            types.String `tfsdk:"status"`
+	TenantID          types.String `tfsdk:"tenant_id"`
+	PlatformID        types.String `tfsdk:"platform_id"`
+	RoleID            types.String `tfsdk:"role_id"`
+	SoftwareVersionID types.String `tfsdk:"software_version_id"`
+	PrimaryIP4ID      types.String `tfsdk:"primary_ip4_id"`
+	PrimaryIP6ID      types.String `tfsdk:"primary_ip6_id"`
+	Vcpus             types.Int64  `tfsdk:"vcpus"`
+	Memory            types.Int64  `tfsdk:"memory"`
+	Disk              types.Int64  `tfsdk:"disk"`
+	Comments          types.String `tfsdk:"comments"`
+	TagsIDs           types.List   `tfsdk:"tags_ids"`
+	Created           types.String `tfsdk:"created"`
+	LastUpdated       types.String `tfsdk:"last_updated"`
 }
 
 type virtualMachinesDataSourceModel struct {
@@ -86,6 +86,10 @@ func (d *VirtualMachinesDataSource) Schema(_ context.Context, _ datasource.Schem
 						},
 						"role_id": dsschema.StringAttribute{
 							Description: "The ID of the role associated with the virtual machine.",
+							Computed:    true,
+						},
+						"software_version_id": dsschema.StringAttribute{
+							Description: "The ID of the software version installed on the virtual machine.",
 							Computed:    true,
 						},
 						"primary_ip4_id": dsschema.StringAttribute{
@@ -180,22 +184,17 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 		for _, vm := range results {
 			var item virtualMachineItemModel
 
-			idStr := ""
-			if vm.Id != nil {
-				idStr = *vm.Id
+			if vm.Id == nil || *vm.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid virtual machine data",
+					"Virtual machines list returned an item with no id (name: "+vm.Name+")",
+				)
+				return
 			}
-			item.ID = types.StringValue(idStr)
+			item.ID = types.StringValue(*vm.Id)
 
-			createdStr := ""
-			if vm.Created.IsSet() && vm.Created.Get() != nil {
-				createdStr = vm.Created.Get().Format(time.RFC3339)
-			}
-			lastUpdatedStr := ""
-			if vm.LastUpdated.IsSet() && vm.LastUpdated.Get() != nil {
-				lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
-			}
-			item.Created = types.StringValue(createdStr)
-			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.Created = nullableTimeStr(vm.Created)
+			item.LastUpdated = nullableTimeStr(vm.LastUpdated)
 
 			item.Name = types.StringValue(vm.Name)
 
@@ -217,11 +216,7 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 			}
 			item.Disk = types.Int64Value(diskVal)
 
-			commentsStr := ""
-			if vm.Comments != nil {
-				commentsStr = *vm.Comments
-			}
-			item.Comments = types.StringValue(commentsStr)
+			item.Comments = types.StringValue(derefStr(vm.Comments))
 
 			clusterID := ""
 			if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
@@ -240,29 +235,10 @@ func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.Rea
 			}
 			item.Status = types.StringValue(statusName)
 
-			tenantID := ""
-			if vm.Tenant.IsSet() {
-				if tenant := vm.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-					tenantID = *tenant.Id.String
-				}
-			}
-			item.TenantID = types.StringValue(tenantID)
-
-			platformID := ""
-			if vm.Platform.IsSet() {
-				if p := vm.Platform.Get(); p != nil && p.Id != nil && p.Id.String != nil {
-					platformID = *p.Id.String
-				}
-			}
-			item.PlatformID = types.StringValue(platformID)
-
-			roleID := ""
-			if vm.Role.IsSet() {
-				if r := vm.Role.Get(); r != nil && r.Id != nil && r.Id.String != nil {
-					roleID = *r.Id.String
-				}
-			}
-			item.RoleID = types.StringValue(roleID)
+			item.TenantID = nullableFKStr(vm.Tenant)
+			item.PlatformID = nullableFKStr(vm.Platform)
+			item.RoleID = nullableFKStr(vm.Role)
+			item.SoftwareVersionID = nullableSoftwareVersionStr(vm.SoftwareVersion)
 
 			primaryIPv4ID := ""
 			if vm.PrimaryIp4.IsSet() {

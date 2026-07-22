@@ -45,11 +45,31 @@ resource "nautobot_tenant_group" "test" {
 }
 
 resource "nautobot_tenant" "test" {
-  name         = "%s"
-  description  = "tenant with group"
-  tenant_group = nautobot_tenant_group.test.id
+  name            = "%s"
+  description     = "tenant with group"
+  tenant_group_id = nautobot_tenant_group.test.id
 }
 `, groupName, name)
+}
+
+func testAccTenantConfigChangingGroup(name, selectedGroup string) string {
+	groupID := ""
+	if selectedGroup != "" {
+		groupID = fmt.Sprintf("  tenant_group_id = nautobot_tenant_group.%s.id\n", selectedGroup)
+	}
+	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_tenant_group" "first" {
+  name = "%[1]s-first"
+}
+
+resource "nautobot_tenant_group" "second" {
+  name = "%[1]s-second"
+}
+
+resource "nautobot_tenant" "test" {
+  name = "%[1]s"
+%[2]s}
+`, name, groupID)
 }
 
 func testAccTenantConfigParallel(base string) string {
@@ -86,7 +106,7 @@ func TestAccTenantResource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttr(tenantResourceName, "name", name),
 					resource.TestCheckResourceAttr(tenantResourceName, "description", ""),
 					resource.TestCheckResourceAttr(tenantResourceName, "comments", ""),
-					resource.TestCheckResourceAttr(tenantResourceName, "tenant_group", ""),
+					resource.TestCheckResourceAttr(tenantResourceName, "tenant_group_id", ""),
 					resource.TestCheckResourceAttrSet(tenantResourceName, "id"),
 					resource.TestCheckResourceAttrSet(tenantResourceName, "display"),
 					resource.TestCheckResourceAttrSet(tenantResourceName, "url"),
@@ -119,7 +139,6 @@ func TestAccTenantResource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(tenantResourceName, "comments", "acceptance test comment"),
 					resource.TestCheckResourceAttrSet(tenantResourceName, "id"),
 					resource.TestCheckResourceAttrSet(tenantResourceName, "created"),
-					resource.TestCheckResourceAttrSet(tenantResourceName, "last_updated"),
 				),
 			},
 			{
@@ -129,7 +148,7 @@ func TestAccTenantResource_full(t *testing.T) {
 	})
 }
 
-func TestAccTenantResource_updateAndDrift(t *testing.T) {
+func TestAccTenantResource_update(t *testing.T) {
 	t.Parallel()
 
 	name := fmt.Sprintf("tfacc-tenant-upd-%d", time.Now().Unix())
@@ -165,6 +184,44 @@ func TestAccTenantResource_updateAndDrift(t *testing.T) {
 	})
 }
 
+func TestAccTenantResource_drift(t *testing.T) {
+	t.Parallel()
+
+	name := fmt.Sprintf("tfacc-tenant-drift-%d", time.Now().Unix())
+	driftedName := name + "-outside-terraform"
+	var tenantID string
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTenantConfigFull(name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testCaptureResourceID(tenantResourceName, &tenantID),
+					resource.TestCheckResourceAttr(tenantResourceName, "name", name),
+					resource.TestCheckResourceAttr(tenantResourceName, "description", "created by terraform acceptance test"),
+				),
+			},
+			{
+				PreConfig: func() {
+					testMutateTenantByID(t, tenantID, driftedName, "outside Terraform")
+				},
+				Config:             testAccTenantConfigFull(name),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: testAccTenantConfigFull(name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(tenantResourceName, "name", name),
+					resource.TestCheckResourceAttr(tenantResourceName, "description", "created by terraform acceptance test"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccTenantResource_import(t *testing.T) {
 	t.Parallel()
 
@@ -194,16 +251,39 @@ func TestAccTenantResource_delete(t *testing.T) {
 
 	name := fmt.Sprintf("tfacc-tenant-del-%d", time.Now().Unix())
 
+	var tenantID string
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testCheckTenantAbsent(&tenantID),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccTenantConfigMinimal(name),
+				Check:  testCaptureResourceID(tenantResourceName, &tenantID),
 			},
 			{
 				Config: testAccProviderConfig(),
 			},
+		},
+	})
+}
+
+func TestAccTenantResource_deleteAlreadyGone(t *testing.T) {
+	t.Parallel()
+
+	name := fmt.Sprintf("tfacc-tenant-del-gone-%d", time.Now().Unix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		AdditionalCLIOptions: &resource.AdditionalCLIOptions{
+			Plan: resource.PlanOptions{NoRefresh: true},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTenantConfigMinimal(name),
+				Check:  testDeleteTenantOutOfBand(tenantResourceName),
+			},
+			{Config: testAccProviderConfig()},
 		},
 	})
 }
@@ -222,15 +302,43 @@ func TestAccTenantResource_withTenantGroup(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(tenantResourceName, "name", name),
 					resource.TestCheckResourceAttr(tenantResourceName, "description", "tenant with group"),
-					resource.TestCheckResourceAttrSet(tenantResourceName, "tenant_group"),
+					resource.TestCheckResourceAttrSet(tenantResourceName, "tenant_group_id"),
 					resource.TestCheckResourceAttrPair(
-						tenantResourceName, "tenant_group",
+						tenantResourceName, "tenant_group_id",
 						"nautobot_tenant_group.test", "id",
 					),
 				),
 			},
 			{
 				Config: testAccProviderConfig(),
+			},
+		},
+	})
+}
+
+func TestAccTenantResource_updateAndClearTenantGroup(t *testing.T) {
+	t.Parallel()
+
+	name := fmt.Sprintf("tfacc-tenant-group-update-%d", time.Now().Unix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTenantConfigChangingGroup(name, "first"),
+				Check: resource.TestCheckResourceAttrPair(
+					tenantResourceName, "tenant_group_id", "nautobot_tenant_group.first", "id",
+				),
+			},
+			{
+				Config: testAccTenantConfigChangingGroup(name, "second"),
+				Check: resource.TestCheckResourceAttrPair(
+					tenantResourceName, "tenant_group_id", "nautobot_tenant_group.second", "id",
+				),
+			},
+			{
+				Config: testAccTenantConfigChangingGroup(name, ""),
+				Check:  resource.TestCheckResourceAttr(tenantResourceName, "tenant_group_id", ""),
 			},
 		},
 	})

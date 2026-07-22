@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -234,7 +233,7 @@ func (r *ManufacturerResource) Delete(ctx context.Context, req resource.DeleteRe
 	httpResp, err := r.client.Client.DcimAPI.
 		DcimManufacturersDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete manufacturer", httpErr(err, httpResp))
 		return
 	}
@@ -262,17 +261,9 @@ func (r *ManufacturerResource) readModel(ctx context.Context, id string) (manufa
 	out.ID = types.StringValue(id)
 	out.Name = types.StringValue(m.Name)
 
-	if m.Description != nil {
-		out.Description = types.StringValue(*m.Description)
-	} else {
-		out.Description = types.StringValue("")
-	}
+	out.Description = types.StringValue(derefStr(m.Description))
 
-	if m.Created.IsSet() && m.Created.Get() != nil {
-		out.Created = types.StringValue(m.Created.Get().Format(time.RFC3339))
-	} else {
-		out.Created = types.StringNull()
-	}
+	out.Created = nullableTimeStr(m.Created)
 
 	out.Display = types.StringValue(m.Display)
 	out.URL = types.StringValue(m.Url)

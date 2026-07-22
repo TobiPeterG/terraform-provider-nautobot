@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -210,30 +209,19 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		for _, prefix := range results {
 			var item prefixItemModel
 
-			idStr := ""
-			if prefix.Id != nil {
-				idStr = *prefix.Id
+			if prefix.Id == nil || *prefix.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid prefix data",
+					"Prefixes list returned an item with no id (prefix: "+prefix.Prefix+")",
+				)
+				return
 			}
-			item.ID = types.StringValue(idStr)
-
-			createdStr := ""
-			if prefix.Created.IsSet() && prefix.Created.Get() != nil {
-				createdStr = prefix.Created.Get().Format(time.RFC3339)
-			}
-			lastUpdatedStr := ""
-			if prefix.LastUpdated.IsSet() && prefix.LastUpdated.Get() != nil {
-				lastUpdatedStr = prefix.LastUpdated.Get().Format(time.RFC3339)
-			}
-
-			descStr := ""
-			if prefix.Description != nil {
-				descStr = *prefix.Description
-			}
+			item.ID = types.StringValue(*prefix.Id)
 
 			item.Prefix = types.StringValue(prefix.Prefix)
-			item.Description = types.StringValue(descStr)
-			item.Created = types.StringValue(createdStr)
-			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.Description = types.StringValue(derefStr(prefix.Description))
+			item.Created = nullableTimeStr(prefix.Created)
+			item.LastUpdated = nullableTimeStr(prefix.LastUpdated)
 
 			statusName := ""
 			if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
@@ -252,23 +240,8 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 				}
 			}
 			item.ParentID = types.StringValue(parentID)
-
-			tenantID := ""
-			if prefix.Tenant.IsSet() {
-				if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-					tenantID = *tenant.Id.String
-				}
-			}
-			item.TenantID = types.StringValue(tenantID)
-
-			roleID := ""
-			if prefix.Role.IsSet() {
-				if role := prefix.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-					roleID = *role.Id.String
-				}
-			}
-			item.RoleID = types.StringValue(roleID)
-
+			item.TenantID = nullableFKStr(prefix.Tenant)
+			item.RoleID = nullableFKStr(prefix.Role)
 			rirID := ""
 			if prefix.Rir.IsSet() {
 				if rir := prefix.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
@@ -283,24 +256,14 @@ func (d *PrefixesDataSource) Read(ctx context.Context, req datasource.ReadReques
 			}
 			item.NamespaceID = types.StringValue(namespaceID)
 
-			vlanID := ""
-			if prefix.Vlan.IsSet() {
-				if vlan := prefix.Vlan.Get(); vlan != nil && vlan.Id != nil && vlan.Id.String != nil {
-					vlanID = *vlan.Id.String
-				}
-			}
-			item.VLANID = types.StringValue(vlanID)
+			item.VLANID = nullableFKStr(prefix.Vlan)
 
 			item.Network = types.StringValue(prefix.Network)
 			item.Broadcast = types.StringValue(prefix.Broadcast)
 			item.PrefixLength = types.Int64Value(int64(prefix.PrefixLength))
 			item.IPVersion = types.Int64Value(int64(prefix.IpVersion))
 
-			dateAllocatedStr := ""
-			if prefix.DateAllocated.IsSet() && prefix.DateAllocated.Get() != nil {
-				dateAllocatedStr = prefix.DateAllocated.Get().Format(time.RFC3339)
-			}
-			item.DateAllocated = types.StringValue(dateAllocatedStr)
+			item.DateAllocated = nullableTimeStr(prefix.DateAllocated)
 
 			if len(prefix.Tags) > 0 {
 				tagVals := make([]attr.Value, 0, len(prefix.Tags))

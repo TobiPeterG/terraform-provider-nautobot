@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -42,6 +41,7 @@ type vlanModel struct {
 
 	Created     types.String `tfsdk:"created"`
 	PrefixCount types.Int64  `tfsdk:"prefix_count"`
+	Display     types.String `tfsdk:"display"`
 	URL         types.String `tfsdk:"url"`
 	NaturalSlug types.String `tfsdk:"natural_slug"`
 	NotesURL    types.String `tfsdk:"notes_url"`
@@ -151,6 +151,11 @@ func (r *VLANResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 
+			"display": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Human-friendly display value.",
+			},
+
 			"url": rschema.StringAttribute{
 				Computed:    true,
 				Description: "API URL of the VLAN.",
@@ -216,36 +221,15 @@ func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	if plan.VLANGroupID.ValueString() != "" {
-		vgVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.VLANGroupID.ValueString()),
-			},
-		}
-		var n nb.NullableApprovalWorkflowUser
-		n.Set(&vgVal)
-		vlan.VlanGroup = n
+		vlan.VlanGroup = makeFKUser(plan.VLANGroupID.ValueString())
 	}
 
 	if plan.TenantID.ValueString() != "" {
-		tVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.TenantID.ValueString()),
-			},
-		}
-		var nt nb.NullableApprovalWorkflowUser
-		nt.Set(&tVal)
-		vlan.Tenant = nt
+		vlan.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if plan.RoleID.ValueString() != "" {
-		rVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.RoleID.ValueString()),
-			},
-		}
-		var nr nb.NullableApprovalWorkflowUser
-		nr.Set(&rVal)
-		vlan.Role = nr
+		vlan.Role = makeFKUser(plan.RoleID.ValueString())
 	}
 
 	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
@@ -360,48 +344,15 @@ func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	if !plan.VLANGroupID.Equal(state.VLANGroupID) {
-		if plan.VLANGroupID.ValueString() == "" {
-			patch.VlanGroup.Set(nil)
-		} else {
-			vgVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.VLANGroupID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&vgVal)
-			patch.VlanGroup = n
-		}
+		patch.VlanGroup = makeFKUser(plan.VLANGroupID.ValueString())
 	}
 
 	if !plan.TenantID.Equal(state.TenantID) {
-		if plan.TenantID.ValueString() == "" {
-			patch.Tenant.Set(nil)
-		} else {
-			tVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.TenantID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&tVal)
-			patch.Tenant = n
-		}
+		patch.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if !plan.RoleID.Equal(state.RoleID) {
-		if plan.RoleID.ValueString() == "" {
-			patch.Role.Set(nil)
-		} else {
-			rVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.RoleID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&rVal)
-			patch.Role = n
-		}
+		patch.Role = makeFKUser(plan.RoleID.ValueString())
 	}
 
 	if !plan.TagsIDs.Equal(state.TagsIDs) {
@@ -455,7 +406,7 @@ func (r *VLANResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	httpResp, err := r.client.Client.IpamAPI.
 		IpamVlansDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete vlan", httpErr(err, httpResp))
 		return
 	}
@@ -484,19 +435,9 @@ func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanMode
 	m.Name = types.StringValue(v.Name)
 	m.Vid = types.Int64Value(int64(v.Vid))
 
-	if v.Description != nil {
-		m.Description = types.StringValue(*v.Description)
-	} else {
-		m.Description = types.StringValue("")
-	}
+	m.Description = types.StringValue(derefStr(v.Description))
 
-	vlanGroupID := ""
-	if v.VlanGroup.IsSet() {
-		if vg := v.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
-			vlanGroupID = *vg.Id.String
-		}
-	}
-	m.VLANGroupID = types.StringValue(vlanGroupID)
+	m.VLANGroupID = nullableFKStr(v.VlanGroup)
 
 	statusName := ""
 	if v.Status.Id != nil && v.Status.Id.String != nil && *v.Status.Id.String != "" {
@@ -506,23 +447,8 @@ func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanMode
 	}
 	m.Status = types.StringValue(statusName)
 
-	tenantID := ""
-	if v.Tenant.IsSet() {
-		t := v.Tenant.Get()
-		if t != nil && t.Id != nil && t.Id.String != nil {
-			tenantID = *t.Id.String
-		}
-	}
-	m.TenantID = types.StringValue(tenantID)
-
-	roleID := ""
-	if v.Role.IsSet() {
-		rr := v.Role.Get()
-		if rr != nil && rr.Id != nil && rr.Id.String != nil {
-			roleID = *rr.Id.String
-		}
-	}
-	m.RoleID = types.StringValue(roleID)
+	m.TenantID = nullableFKStr(v.Tenant)
+	m.RoleID = nullableFKStr(v.Role)
 
 	if len(v.Tags) > 0 {
 		vals := make([]attr.Value, 0, len(v.Tags))
@@ -536,11 +462,7 @@ func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanMode
 		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 	}
 
-	if v.Created.IsSet() && v.Created.Get() != nil {
-		m.Created = types.StringValue(v.Created.Get().Format(time.RFC3339))
-	} else {
-		m.Created = types.StringNull()
-	}
+	m.Created = nullableTimeStr(v.Created)
 
 	if v.PrefixCount != nil {
 		m.PrefixCount = types.Int64Value(int64(*v.PrefixCount))
@@ -548,6 +470,7 @@ func (r *VLANResource) buildStateModel(ctx context.Context, id string) (vlanMode
 		m.PrefixCount = types.Int64Value(0)
 	}
 
+	m.Display = types.StringValue(v.Display)
 	m.URL = types.StringValue(v.Url)
 	m.NaturalSlug = types.StringValue(v.NaturalSlug)
 	m.NotesURL = types.StringValue(v.NotesUrl)

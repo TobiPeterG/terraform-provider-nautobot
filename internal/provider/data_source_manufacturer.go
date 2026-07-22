@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -141,28 +140,13 @@ func (d *ManufacturerDataSource) Read(ctx context.Context, req datasource.ReadRe
 	id := *m.Id
 	data.ID = types.StringValue(id)
 
-	createdStr := ""
-	if m.Created.IsSet() && m.Created.Get() != nil {
-		createdStr = m.Created.Get().Format(time.RFC3339)
-	}
-
-	lastUpdatedStr := ""
-	if m.LastUpdated.IsSet() && m.LastUpdated.Get() != nil {
-		lastUpdatedStr = m.LastUpdated.Get().Format(time.RFC3339)
-	}
-
-	desc := ""
-	if m.Description != nil {
-		desc = *m.Description
-	}
-
 	data.Name = types.StringValue(m.Name)
 	data.Display = types.StringValue(m.Display)
 	data.URL = types.StringValue(m.Url)
 	data.NaturalSlug = types.StringValue(m.NaturalSlug)
-	data.Description = types.StringValue(desc)
-	data.Created = types.StringValue(createdStr)
-	data.LastUpdated = types.StringValue(lastUpdatedStr)
+	data.Description = types.StringValue(derefStr(m.Description))
+	data.Created = nullableTimeStr(m.Created)
+	data.LastUpdated = nullableTimeStr(m.LastUpdated)
 	data.NotesURL = types.StringValue(m.NotesUrl)
 
 	tflog.Debug(ctx, "read manufacturer", map[string]any{"id": id, "name": name})

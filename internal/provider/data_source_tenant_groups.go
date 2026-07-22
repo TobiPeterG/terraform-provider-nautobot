@@ -22,7 +22,7 @@ type tenantGroupItemModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	Parent      types.String `tfsdk:"parent"`
+	ParentID    types.String `tfsdk:"parent_id"`
 	Created     types.String `tfsdk:"created"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 	Display     types.String `tfsdk:"display"`
@@ -64,7 +64,7 @@ func (d *TenantGroupsDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 							Description: "Tenant group's description.",
 							Computed:    true,
 						},
-						"parent": dsschema.StringAttribute{
+						"parent_id": dsschema.StringAttribute{
 							Description: "UUID of the parent tenant group.",
 							Computed:    true,
 						},
@@ -147,11 +147,14 @@ func (d *TenantGroupsDataSource) Read(ctx context.Context, req datasource.ReadRe
 		for _, m := range results {
 			var item tenantGroupItemModel
 
-			if m.Id != nil {
-				item.ID = types.StringValue(*m.Id)
-			} else {
-				item.ID = types.StringValue("")
+			if m.Id == nil || *m.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid tenant group data",
+					"Tenant groups list returned an item with no id (name: "+m.Name+")",
+				)
+				return
 			}
+			item.ID = types.StringValue(*m.Id)
 
 			item.Name = types.StringValue(m.Name)
 			item.Display = types.StringValue(m.Display)
@@ -159,7 +162,7 @@ func (d *TenantGroupsDataSource) Read(ctx context.Context, req datasource.ReadRe
 			item.NaturalSlug = types.StringValue(m.NaturalSlug)
 			item.NotesURL = types.StringValue(m.NotesUrl)
 			item.Description = types.StringValue(derefStr(m.Description))
-			item.Parent = nullableFKStr(m.Parent)
+			item.ParentID = nullableFKStr(m.Parent)
 			item.Created = nullableTimeStr(m.Created)
 			item.LastUpdated = nullableTimeStr(m.LastUpdated)
 

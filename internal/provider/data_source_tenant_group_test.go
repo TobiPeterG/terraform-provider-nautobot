@@ -50,7 +50,7 @@ func TestAccTenantGroupDataSource_minimal(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(tenantGroupDataSourceName, "name", name),
 					resource.TestCheckResourceAttr(tenantGroupDataSourceName, "description", ""),
-					resource.TestCheckResourceAttr(tenantGroupDataSourceName, "parent", ""),
+					resource.TestCheckResourceAttr(tenantGroupDataSourceName, "parent_id", ""),
 					resource.TestCheckResourceAttrSet(tenantGroupDataSourceName, "id"),
 
 					resource.TestCheckResourceAttrPair(

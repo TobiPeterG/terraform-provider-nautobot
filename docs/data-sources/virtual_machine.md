@@ -42,6 +42,7 @@ output "data_virtual_machine" {
 - `primary_ip4_id` (String) The ID of the primary IPv4 address.
 - `primary_ip6_id` (String) The ID of the primary IPv6 address.
 - `role_id` (String) The ID of the role associated with the virtual machine.
+- `software_version_id` (String) The ID of the software version installed on the virtual machine.
 - `status` (String) The name of the status of the virtual machine.
 - `tags_ids` (List of String) The IDs of the tags associated with the virtual machine.
 - `tenant_id` (String) The ID of the tenant associated with the virtual machine.

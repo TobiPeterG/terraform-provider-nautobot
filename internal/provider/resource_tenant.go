@@ -25,17 +25,16 @@ type TenantResource struct {
 }
 
 type tenantModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Comments    types.String `tfsdk:"comments"`
-	TenantGroup types.String `tfsdk:"tenant_group"`
-	Created     types.String `tfsdk:"created"`
-	LastUpdated types.String `tfsdk:"last_updated"`
-	Display     types.String `tfsdk:"display"`
-	URL         types.String `tfsdk:"url"`
-	NaturalSlug types.String `tfsdk:"natural_slug"`
-	NotesURL    types.String `tfsdk:"notes_url"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	Comments      types.String `tfsdk:"comments"`
+	TenantGroupID types.String `tfsdk:"tenant_group_id"`
+	Created       types.String `tfsdk:"created"`
+	Display       types.String `tfsdk:"display"`
+	URL           types.String `tfsdk:"url"`
+	NaturalSlug   types.String `tfsdk:"natural_slug"`
+	NotesURL      types.String `tfsdk:"notes_url"`
 }
 
 func NewTenantResource() resource.Resource {
@@ -79,7 +78,7 @@ func (r *TenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"tenant_group": rschema.StringAttribute{
+			"tenant_group_id": rschema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString(""),
@@ -94,10 +93,6 @@ func (r *TenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"last_updated": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Tenant's last update date (RFC3339).",
 			},
 			"display": rschema.StringAttribute{
 				Computed:    true,
@@ -144,7 +139,7 @@ func (r *TenantResource) Create(ctx context.Context, req resource.CreateRequest,
 	if v := plan.Comments.ValueString(); v != "" {
 		body.Comments = &v
 	}
-	if v := plan.TenantGroup.ValueString(); v != "" {
+	if v := plan.TenantGroupID.ValueString(); v != "" {
 		body.TenantGroup = makeFKUser(v)
 	}
 
@@ -226,8 +221,8 @@ func (r *TenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 		v := plan.Comments.ValueString()
 		patch.Comments = &v
 	}
-	if !plan.TenantGroup.Equal(state.TenantGroup) {
-		patch.TenantGroup = makeFKUser(plan.TenantGroup.ValueString())
+	if !plan.TenantGroupID.Equal(state.TenantGroupID) {
+		patch.TenantGroup = makeFKUser(plan.TenantGroupID.ValueString())
 	}
 
 	_, httpResp, err := c.TenancyAPI.
@@ -263,7 +258,7 @@ func (r *TenantResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	httpResp, err := r.client.Client.TenancyAPI.
 		TenancyTenantsDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete tenant", httpErr(err, httpResp))
 		return
 	}
@@ -293,10 +288,8 @@ func (r *TenantResource) readModel(ctx context.Context, id string) (tenantModel,
 
 	out.Description = types.StringValue(derefStr(m.Description))
 	out.Comments = types.StringValue(derefStr(m.Comments))
-	out.TenantGroup = nullableFKStr(m.TenantGroup)
+	out.TenantGroupID = nullableFKStr(m.TenantGroup)
 	out.Created = nullableTimeStr(m.Created)
-	out.LastUpdated = nullableTimeStr(m.LastUpdated)
-
 	out.Display = types.StringValue(m.Display)
 	out.URL = types.StringValue(m.Url)
 	out.NaturalSlug = types.StringValue(m.NaturalSlug)

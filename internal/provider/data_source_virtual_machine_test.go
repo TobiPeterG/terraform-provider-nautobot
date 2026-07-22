@@ -101,6 +101,7 @@ func TestAccVirtualMachineDataSource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttr(vmDataSourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "platform_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "role_id", ""),
+					resource.TestCheckResourceAttr(vmDataSourceName, "software_version_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "primary_ip4_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "primary_ip6_id", ""),
 
@@ -149,6 +150,7 @@ func TestAccVirtualMachineDataSource_full(t *testing.T) {
 					resource.TestCheckResourceAttr(vmDataSourceName, "tenant_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "platform_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "role_id", ""),
+					resource.TestCheckResourceAttr(vmDataSourceName, "software_version_id", ""),
 
 					resource.TestCheckResourceAttr(vmDataSourceName, "primary_ip4_id", ""),
 					resource.TestCheckResourceAttr(vmDataSourceName, "primary_ip6_id", ""),

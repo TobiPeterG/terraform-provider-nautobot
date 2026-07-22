@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -36,6 +35,7 @@ type prefixModel struct {
 	RoleID        types.String `tfsdk:"role_id"`
 	TenantID      types.String `tfsdk:"tenant_id"`
 	RirID         types.String `tfsdk:"rir_id"`
+	NamespaceID   types.String `tfsdk:"namespace_id"`
 	Created       types.String `tfsdk:"created"`
 	Network       types.String `tfsdk:"network"`
 	Broadcast     types.String `tfsdk:"broadcast"`
@@ -142,11 +142,12 @@ func (r *PrefixResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"date_allocated": rschema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString(""),
 				Description: "Date this prefix was allocated/reserved (RFC3339).",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+			},
+
+			"namespace_id": rschema.StringAttribute{
+				Computed:    true,
+				Description: "The ID of the namespace associated with the prefix.",
 			},
 
 			"tags_ids": rschema.ListAttribute{
@@ -265,36 +266,15 @@ func (r *PrefixResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	if plan.VLANID.ValueString() != "" {
-		vVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.VLANID.ValueString()),
-			},
-		}
-		var nv nb.NullableApprovalWorkflowUser
-		nv.Set(&vVal)
-		pr.Vlan = nv
+		pr.Vlan = makeFKUser(plan.VLANID.ValueString())
 	}
 
 	if plan.TenantID.ValueString() != "" {
-		tVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.TenantID.ValueString()),
-			},
-		}
-		var nt nb.NullableApprovalWorkflowUser
-		nt.Set(&tVal)
-		pr.Tenant = nt
+		pr.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if plan.RoleID.ValueString() != "" {
-		rVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.RoleID.ValueString()),
-			},
-		}
-		var nr nb.NullableApprovalWorkflowUser
-		nr.Set(&rVal)
-		pr.Role = nr
+		pr.Role = makeFKUser(plan.RoleID.ValueString())
 	}
 
 	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
@@ -404,48 +384,15 @@ func (r *PrefixResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	if !plan.VLANID.Equal(state.VLANID) {
-		if plan.VLANID.ValueString() == "" {
-			patch.Vlan.Set(nil)
-		} else {
-			vVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.VLANID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&vVal)
-			patch.Vlan = n
-		}
+		patch.Vlan = makeFKUser(plan.VLANID.ValueString())
 	}
 
 	if !plan.TenantID.Equal(state.TenantID) {
-		if plan.TenantID.ValueString() == "" {
-			patch.Tenant.Set(nil)
-		} else {
-			tVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.TenantID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&tVal)
-			patch.Tenant = n
-		}
+		patch.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if !plan.RoleID.Equal(state.RoleID) {
-		if plan.RoleID.ValueString() == "" {
-			patch.Role.Set(nil)
-		} else {
-			rVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.RoleID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&rVal)
-			patch.Role = n
-		}
+		patch.Role = makeFKUser(plan.RoleID.ValueString())
 	}
 
 	if !plan.TagsIDs.Equal(state.TagsIDs) {
@@ -499,7 +446,7 @@ func (r *PrefixResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	httpResp, err := r.client.Client.IpamAPI.
 		IpamPrefixesDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete prefix", httpErr(err, httpResp))
 		return
 	}
@@ -527,17 +474,9 @@ func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefix
 	m.ID = types.StringValue(id)
 	m.Prefix = types.StringValue(p.Prefix)
 
-	desc := ""
-	if p.Description != nil {
-		desc = *p.Description
-	}
-	m.Description = types.StringValue(desc)
+	m.Description = types.StringValue(derefStr(p.Description))
 
-	if p.Created.IsSet() && p.Created.Get() != nil {
-		m.Created = types.StringValue(p.Created.Get().Format(time.RFC3339))
-	} else {
-		m.Created = types.StringNull()
-	}
+	m.Created = nullableTimeStr(p.Created)
 
 	statusName := ""
 	if p.Status.Id != nil && p.Status.Id.String != nil && *p.Status.Id.String != "" {
@@ -554,23 +493,8 @@ func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefix
 		}
 	}
 	m.ParentID = types.StringValue(parentID)
-
-	tenantID := ""
-	if p.Tenant.IsSet() {
-		if tenant := p.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			tenantID = *tenant.Id.String
-		}
-	}
-	m.TenantID = types.StringValue(tenantID)
-
-	roleID := ""
-	if p.Role.IsSet() {
-		if role := p.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-			roleID = *role.Id.String
-		}
-	}
-	m.RoleID = types.StringValue(roleID)
-
+	m.TenantID = nullableFKStr(p.Tenant)
+	m.RoleID = nullableFKStr(p.Role)
 	rirID := ""
 	if p.Rir.IsSet() {
 		if rir := p.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
@@ -578,25 +502,19 @@ func (r *PrefixResource) buildStateModel(ctx context.Context, id string) (prefix
 		}
 	}
 	m.RirID = types.StringValue(rirID)
-
-	vlanID := ""
-	if p.Vlan.IsSet() {
-		if v := p.Vlan.Get(); v != nil && v.Id != nil && v.Id.String != nil {
-			vlanID = *v.Id.String
-		}
+	namespaceID := ""
+	if p.Namespace != nil && p.Namespace.Id != nil && p.Namespace.Id.String != nil {
+		namespaceID = *p.Namespace.Id.String
 	}
-	m.VLANID = types.StringValue(vlanID)
+	m.NamespaceID = types.StringValue(namespaceID)
+	m.VLANID = nullableFKStr(p.Vlan)
 
 	m.Network = types.StringValue(p.Network)
 	m.Broadcast = types.StringValue(p.Broadcast)
 	m.PrefixLength = types.Int64Value(int64(p.PrefixLength))
 	m.IPVersion = types.Int64Value(int64(p.IpVersion))
 
-	dateAllocated := ""
-	if p.DateAllocated.IsSet() && p.DateAllocated.Get() != nil {
-		dateAllocated = p.DateAllocated.Get().Format(time.RFC3339)
-	}
-	m.DateAllocated = types.StringValue(dateAllocated)
+	m.DateAllocated = nullableTimeStr(p.DateAllocated)
 
 	if len(p.Tags) > 0 {
 		vals := make([]attr.Value, 0, len(p.Tags))

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -143,33 +142,22 @@ func (d *ManufacturersDataSource) Read(ctx context.Context, req datasource.ReadR
 		for _, m := range results {
 			var item manufacturerItemModel
 
-			idStr := ""
-			if m.Id != nil {
-				idStr = *m.Id
+			if m.Id == nil || *m.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid manufacturer data",
+					"Manufacturers list returned an item with no id (name: "+m.Name+")",
+				)
+				return
 			}
-			item.ID = types.StringValue(idStr)
-
-			createdStr := ""
-			if m.Created.IsSet() && m.Created.Get() != nil {
-				createdStr = m.Created.Get().Format(time.RFC3339)
-			}
-			lastUpdatedStr := ""
-			if m.LastUpdated.IsSet() && m.LastUpdated.Get() != nil {
-				lastUpdatedStr = m.LastUpdated.Get().Format(time.RFC3339)
-			}
-
-			descStr := ""
-			if m.Description != nil {
-				descStr = *m.Description
-			}
+			item.ID = types.StringValue(*m.Id)
 
 			item.Display = types.StringValue(m.Display)
 			item.URL = types.StringValue(m.Url)
 			item.NaturalSlug = types.StringValue(m.NaturalSlug)
 			item.Name = types.StringValue(m.Name)
-			item.Description = types.StringValue(descStr)
-			item.Created = types.StringValue(createdStr)
-			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.Description = types.StringValue(derefStr(m.Description))
+			item.Created = nullableTimeStr(m.Created)
+			item.LastUpdated = nullableTimeStr(m.LastUpdated)
 			item.NotesURL = types.StringValue(m.NotesUrl)
 
 			state.Manufacturers = append(state.Manufacturers, item)

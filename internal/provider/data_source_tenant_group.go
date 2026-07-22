@@ -22,7 +22,7 @@ type tenantGroupDataSourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	Parent      types.String `tfsdk:"parent"`
+	ParentID    types.String `tfsdk:"parent_id"`
 	Created     types.String `tfsdk:"created"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 	Display     types.String `tfsdk:"display"`
@@ -55,7 +55,7 @@ func (d *TenantGroupDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 				Description: "Tenant group's description.",
 				Computed:    true,
 			},
-			"parent": dsschema.StringAttribute{
+			"parent_id": dsschema.StringAttribute{
 				Description: "UUID of the parent tenant group.",
 				Computed:    true,
 			},
@@ -150,7 +150,7 @@ func (d *TenantGroupDataSource) Read(ctx context.Context, req datasource.ReadReq
 	data.NaturalSlug = types.StringValue(m.NaturalSlug)
 	data.NotesURL = types.StringValue(m.NotesUrl)
 	data.Description = types.StringValue(derefStr(m.Description))
-	data.Parent = nullableFKStr(m.Parent)
+	data.ParentID = nullableFKStr(m.Parent)
 	data.Created = nullableTimeStr(m.Created)
 	data.LastUpdated = nullableTimeStr(m.LastUpdated)
 

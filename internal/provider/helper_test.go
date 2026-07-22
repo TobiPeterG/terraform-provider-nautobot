@@ -3,12 +3,14 @@ package provider
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	nb "github.com/nautobot/go-nautobot/v3"
 )
@@ -48,6 +50,104 @@ func TestInt32Ptr(t *testing.T) {
 	p := int32Ptr(42)
 	if p == nil || *p != int32(42) {
 		t.Fatalf("expected ptr to %d, got %+v", 42, p)
+	}
+}
+
+func TestDerefStr(t *testing.T) {
+	if got := derefStr(nil); got != "" {
+		t.Fatalf("expected nil pointer to become an empty string, got %q", got)
+	}
+	empty := ""
+	if got := derefStr(&empty); got != "" {
+		t.Fatalf("expected empty string to remain empty, got %q", got)
+	}
+	want := "value"
+	if got := derefStr(&want); got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestNullableTimeStr(t *testing.T) {
+	var unset nb.NullableTime
+	if got := nullableTimeStr(unset); !got.IsNull() {
+		t.Fatalf("expected unset time to become null, got %v", got)
+	}
+	var explicitNull nb.NullableTime
+	explicitNull.Set(nil)
+	if got := nullableTimeStr(explicitNull); !got.IsNull() {
+		t.Fatalf("expected explicit null time to become null, got %v", got)
+	}
+
+	want := time.Date(2026, time.July, 22, 12, 34, 56, 0, time.FixedZone("test", 2*60*60))
+	var value nb.NullableTime
+	value.Set(&want)
+	if got := nullableTimeStr(value).ValueString(); got != want.Format(time.RFC3339) {
+		t.Fatalf("expected %q, got %q", want.Format(time.RFC3339), got)
+	}
+}
+
+func TestNullableFKStr(t *testing.T) {
+	var unset nb.NullableApprovalWorkflowUser
+	if got := nullableFKStr(unset).ValueString(); got != "" {
+		t.Fatalf("expected unset FK to become empty, got %q", got)
+	}
+
+	var explicitNull nb.NullableApprovalWorkflowUser
+	explicitNull.Set(nil)
+	if got := nullableFKStr(explicitNull).ValueString(); got != "" {
+		t.Fatalf("expected explicit null FK to become empty, got %q", got)
+	}
+
+	var missingID nb.NullableApprovalWorkflowUser
+	missingID.Set(&nb.ApprovalWorkflowUser{})
+	if got := nullableFKStr(missingID).ValueString(); got != "" {
+		t.Fatalf("expected FK without an ID to become empty, got %q", got)
+	}
+
+	want := "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+	if got := nullableFKStr(makeFKUser(want)).ValueString(); got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestNullableSoftwareVersionStr(t *testing.T) {
+	var unset nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+	if got := nullableSoftwareVersionStr(unset).ValueString(); got != "" {
+		t.Fatalf("expected unset software version to become empty, got %q", got)
+	}
+
+	var missingID nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+	missingID.Set(&nb.BulkWritableVirtualMachineRequestSoftwareVersion{})
+	if got := nullableSoftwareVersionStr(missingID).ValueString(); got != "" {
+		t.Fatalf("expected software version without an ID to become empty, got %q", got)
+	}
+
+	want := "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+	var populated nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion
+	populated.Set(&nb.BulkWritableVirtualMachineRequestSoftwareVersion{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{String: &want},
+	})
+	if got := nullableSoftwareVersionStr(populated).ValueString(); got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestMakeFKUserJSON(t *testing.T) {
+	empty, err := json.Marshal(makeFKUser(""))
+	if err != nil {
+		t.Fatalf("marshal empty FK: %v", err)
+	}
+	if string(empty) != "null" {
+		t.Fatalf("expected empty FK to marshal as null, got %s", empty)
+	}
+
+	want := "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+	populated, err := json.Marshal(makeFKUser(want))
+	if err != nil {
+		t.Fatalf("marshal populated FK: %v", err)
+	}
+	if !strings.Contains(string(populated), want) {
+		t.Fatalf("expected populated FK JSON to contain %q, got %s", want, populated)
 	}
 }
 

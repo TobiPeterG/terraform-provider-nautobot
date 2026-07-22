@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -141,28 +140,13 @@ func (d *ClusterTypeDataSource) Read(ctx context.Context, req datasource.ReadReq
 	id := *ct.Id
 	data.ID = types.StringValue(id)
 
-	createdStr := ""
-	if ct.Created.IsSet() && ct.Created.Get() != nil {
-		createdStr = ct.Created.Get().Format(time.RFC3339)
-	}
-
-	lastUpdatedStr := ""
-	if ct.LastUpdated.IsSet() && ct.LastUpdated.Get() != nil {
-		lastUpdatedStr = ct.LastUpdated.Get().Format(time.RFC3339)
-	}
-
-	desc := ""
-	if ct.Description != nil {
-		desc = *ct.Description
-	}
-
 	data.Name = types.StringValue(ct.Name)
 	data.Display = types.StringValue(ct.Display)
 	data.URL = types.StringValue(ct.Url)
 	data.NaturalSlug = types.StringValue(ct.NaturalSlug)
-	data.Description = types.StringValue(desc)
-	data.Created = types.StringValue(createdStr)
-	data.LastUpdated = types.StringValue(lastUpdatedStr)
+	data.Description = types.StringValue(derefStr(ct.Description))
+	data.Created = nullableTimeStr(ct.Created)
+	data.LastUpdated = nullableTimeStr(ct.LastUpdated)
 	data.NotesURL = types.StringValue(ct.NotesUrl)
 
 	tflog.Debug(ctx, "read cluster type", map[string]any{"id": id, "name": name})

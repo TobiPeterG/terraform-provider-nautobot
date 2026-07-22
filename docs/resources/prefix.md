@@ -56,6 +56,7 @@ output "resource_prefix" {
 - `display` (String) Human-friendly display value.
 - `id` (String) Prefix UUID.
 - `ip_version` (Number) IP version (4 or 6).
+- `namespace_id` (String) The ID of the namespace associated with the prefix.
 - `natural_slug` (String) Natural slug for the prefix.
 - `network` (String) IPv4 or IPv6 network address.
 - `notes_url` (String) Notes URL for the prefix.

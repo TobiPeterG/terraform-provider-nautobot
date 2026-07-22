@@ -126,7 +126,7 @@ func TestAccPrefixResource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttr(prefixResourceName, "role_id", ""),
 					resource.TestCheckResourceAttr(prefixResourceName, "parent_id", ""),
 					resource.TestCheckResourceAttr(prefixResourceName, "rir_id", ""),
-					resource.TestCheckResourceAttr(prefixResourceName, "date_allocated", ""),
+					resource.TestCheckNoResourceAttr(prefixResourceName, "date_allocated"),
 
 					resource.TestCheckResourceAttr(prefixResourceName, "tags_ids.#", "0"),
 
@@ -135,6 +135,7 @@ func TestAccPrefixResource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet(prefixResourceName, "broadcast"),
 					resource.TestCheckResourceAttrSet(prefixResourceName, "prefix_length"),
 					resource.TestCheckResourceAttrSet(prefixResourceName, "ip_version"),
+					resource.TestCheckResourceAttrSet(prefixResourceName, "namespace_id"),
 					resource.TestCheckResourceAttrSet(prefixResourceName, "display"),
 					resource.TestCheckResourceAttrSet(prefixResourceName, "url"),
 					resource.TestCheckResourceAttrSet(prefixResourceName, "natural_slug"),

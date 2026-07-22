@@ -243,6 +243,17 @@ func nullableFKStr(n nb.NullableApprovalWorkflowUser) types.String {
 	return types.StringValue("")
 }
 
+// nullableSoftwareVersionStr extracts the UUID from a nullable VM software version.
+// Returns types.StringValue("") when not set or the nested ID is absent.
+func nullableSoftwareVersionStr(n nb.NullableBulkWritableVirtualMachineRequestSoftwareVersion) types.String {
+	if n.IsSet() {
+		if v := n.Get(); v != nil && v.Id != nil && v.Id.String != nil {
+			return types.StringValue(*v.Id.String)
+		}
+	}
+	return types.StringValue("")
+}
+
 // makeFKUser builds a NullableApprovalWorkflowUser from a UUID string.
 // An empty id produces a set-but-nil FK (clears the relation on PATCH).
 func makeFKUser(id string) nb.NullableApprovalWorkflowUser {

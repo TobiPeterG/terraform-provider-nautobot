@@ -41,5 +41,5 @@ Read-Only:
 - `name` (String) Tenant group's name.
 - `natural_slug` (String) Natural slug for the tenant group.
 - `notes_url` (String) Notes URL for the tenant group.
-- `parent` (String) UUID of the parent tenant group.
+- `parent_id` (String) UUID of the parent tenant group.
 - `url` (String) URL of the tenant group.
