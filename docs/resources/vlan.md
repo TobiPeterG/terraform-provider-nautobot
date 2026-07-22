@@ -44,6 +44,7 @@ output "resource_vlan" {
 ### Read-Only
 
 - `created` (String) Creation timestamp (RFC3339).
+- `display` (String) Human-friendly display value.
 - `id` (String) VLAN UUID.
 - `natural_slug` (String) Natural slug for the VLAN.
 - `notes_url` (String) Notes URL for the VLAN.

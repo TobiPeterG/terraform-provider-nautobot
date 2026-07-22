@@ -265,7 +265,7 @@ func (r *VMPrimaryIPResource) Delete(ctx context.Context, req resource.DeleteReq
 		VirtualizationVirtualMachinesPartialUpdate(ctx, vmID).
 		PatchedVirtualMachineRequest(patch).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to remove primary IP address for virtual machine", httpErr(err, httpResp))
 		return
 	}

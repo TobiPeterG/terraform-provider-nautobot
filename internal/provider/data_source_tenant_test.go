@@ -52,7 +52,7 @@ func TestAccTenantDataSource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttr(tenantDataSourceName, "name", name),
 					resource.TestCheckResourceAttr(tenantDataSourceName, "description", ""),
 					resource.TestCheckResourceAttr(tenantDataSourceName, "comments", ""),
-					resource.TestCheckResourceAttr(tenantDataSourceName, "tenant_group", ""),
+					resource.TestCheckResourceAttr(tenantDataSourceName, "tenant_group_id", ""),
 					resource.TestCheckResourceAttrSet(tenantDataSourceName, "id"),
 
 					resource.TestCheckResourceAttrPair(

@@ -19,17 +19,17 @@ type TenantsDataSource struct {
 }
 
 type tenantItemModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Comments    types.String `tfsdk:"comments"`
-	TenantGroup types.String `tfsdk:"tenant_group"`
-	Created     types.String `tfsdk:"created"`
-	LastUpdated types.String `tfsdk:"last_updated"`
-	Display     types.String `tfsdk:"display"`
-	URL         types.String `tfsdk:"url"`
-	NaturalSlug types.String `tfsdk:"natural_slug"`
-	NotesURL    types.String `tfsdk:"notes_url"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	Comments      types.String `tfsdk:"comments"`
+	TenantGroupID types.String `tfsdk:"tenant_group_id"`
+	Created       types.String `tfsdk:"created"`
+	LastUpdated   types.String `tfsdk:"last_updated"`
+	Display       types.String `tfsdk:"display"`
+	URL           types.String `tfsdk:"url"`
+	NaturalSlug   types.String `tfsdk:"natural_slug"`
+	NotesURL      types.String `tfsdk:"notes_url"`
 }
 
 type tenantsDataSourceModel struct {
@@ -69,7 +69,7 @@ func (d *TenantsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 							Description: "Tenant's comments.",
 							Computed:    true,
 						},
-						"tenant_group": dsschema.StringAttribute{
+						"tenant_group_id": dsschema.StringAttribute{
 							Description: "UUID of the tenant group this tenant belongs to.",
 							Computed:    true,
 						},
@@ -152,11 +152,14 @@ func (d *TenantsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		for _, m := range results {
 			var item tenantItemModel
 
-			if m.Id != nil {
-				item.ID = types.StringValue(*m.Id)
-			} else {
-				item.ID = types.StringValue("")
+			if m.Id == nil || *m.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid tenant data",
+					"Tenants list returned an item with no id (name: "+m.Name+")",
+				)
+				return
 			}
+			item.ID = types.StringValue(*m.Id)
 
 			item.Name = types.StringValue(m.Name)
 			item.Display = types.StringValue(m.Display)
@@ -165,7 +168,7 @@ func (d *TenantsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			item.NotesURL = types.StringValue(m.NotesUrl)
 			item.Description = types.StringValue(derefStr(m.Description))
 			item.Comments = types.StringValue(derefStr(m.Comments))
-			item.TenantGroup = nullableFKStr(m.TenantGroup)
+			item.TenantGroupID = nullableFKStr(m.TenantGroup)
 			item.Created = nullableTimeStr(m.Created)
 			item.LastUpdated = nullableTimeStr(m.LastUpdated)
 

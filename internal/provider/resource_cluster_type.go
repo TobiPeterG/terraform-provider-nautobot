@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -229,7 +228,7 @@ func (r *ClusterTypeResource) Delete(ctx context.Context, req resource.DeleteReq
 	httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationClusterTypesDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete cluster type", httpErr(err, httpResp))
 		return
 	}
@@ -260,17 +259,9 @@ func (r *ClusterTypeResource) readModel(ctx context.Context, id string) (cluster
 	m.URL = types.StringValue(ct.Url)
 	m.NaturalSlug = types.StringValue(ct.NaturalSlug)
 
-	if ct.Description != nil {
-		m.Description = types.StringValue(*ct.Description)
-	} else {
-		m.Description = types.StringValue("")
-	}
+	m.Description = types.StringValue(derefStr(ct.Description))
 
-	if ct.Created.IsSet() && ct.Created.Get() != nil {
-		m.Created = types.StringValue(ct.Created.Get().Format(time.RFC3339))
-	} else {
-		m.Created = types.StringNull()
-	}
+	m.Created = nullableTimeStr(ct.Created)
 
 	m.NotesURL = types.StringValue(ct.NotesUrl)
 

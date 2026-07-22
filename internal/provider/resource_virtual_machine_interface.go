@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -266,14 +265,7 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	if v := plan.UntaggedVlanID.ValueString(); v != "" {
-		uvVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(v),
-			},
-		}
-		var uv nb.NullableApprovalWorkflowUser
-		uv.Set(&uvVal)
-		body.UntaggedVlan = uv
+		body.UntaggedVlan = makeFKUser(v)
 	}
 
 	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
@@ -462,18 +454,7 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	if !plan.UntaggedVlanID.Equal(state.UntaggedVlanID) {
-		if plan.UntaggedVlanID.ValueString() == "" {
-			patch.UntaggedVlan.Set(nil)
-		} else {
-			uvVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.UntaggedVlanID.ValueString()),
-				},
-			}
-			var uv nb.NullableApprovalWorkflowUser
-			uv.Set(&uvVal)
-			patch.UntaggedVlan = uv
-		}
+		patch.UntaggedVlan = makeFKUser(plan.UntaggedVlanID.ValueString())
 	}
 
 	if !plan.TagsIDs.Equal(state.TagsIDs) {
@@ -571,7 +552,7 @@ func (r *VMInterfaceResource) Delete(ctx context.Context, req resource.DeleteReq
 	httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationInterfacesDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete VM interface", httpErr(err, httpResp))
 		return
 	}
@@ -617,11 +598,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 		m.MTU = types.Int64Value(0)
 	}
 
-	if ifc.Description != nil {
-		m.Description = types.StringValue(*ifc.Description)
-	} else {
-		m.Description = types.StringValue("")
-	}
+	m.Description = types.StringValue(derefStr(ifc.Description))
 
 	statusName := ""
 	if ifc.Status.Id != nil && ifc.Status.Id.String != nil {
@@ -639,13 +616,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 	}
 	m.VirtualMachineID = types.StringValue(vmID)
 
-	untagged := ""
-	if ifc.UntaggedVlan.IsSet() {
-		if uv := ifc.UntaggedVlan.Get(); uv != nil && uv.Id != nil && uv.Id.String != nil {
-			untagged = *uv.Id.String
-		}
-	}
-	m.UntaggedVlanID = types.StringValue(untagged)
+	m.UntaggedVlanID = nullableFKStr(ifc.UntaggedVlan)
 
 	if len(ifc.Tags) > 0 {
 		vals := make([]attr.Value, 0, len(ifc.Tags))
@@ -692,11 +663,7 @@ func (r *VMInterfaceResource) readModel(ctx context.Context, id string) (vmInter
 	}
 	m.Mode = types.StringValue(mode)
 
-	if ifc.Created.IsSet() && ifc.Created.Get() != nil {
-		m.Created = types.StringValue(ifc.Created.Get().Format(time.RFC3339))
-	} else {
-		m.Created = types.StringNull()
-	}
+	m.Created = nullableTimeStr(ifc.Created)
 
 	tflog.Debug(ctx, "read VM interface", map[string]any{"id": id})
 	return m, true, diags
@@ -708,23 +675,13 @@ func (r *VMInterfaceResource) assignIPAddressToVMInterface(ctx context.Context, 
 	ipID := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 		String: &ipAddressID,
 	}
-	ifID := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-		String: &vmInterfaceID,
-	}
-
 	ipRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
 		Id: ipID,
 	}
 
-	vmIfcVal := nb.ApprovalWorkflowUser{
-		Id: ifID,
-	}
-	var vmIfcNullable nb.NullableApprovalWorkflowUser
-	vmIfcNullable.Set(&vmIfcVal)
-
 	req := nb.IPAddressToInterfaceRequest{
 		IpAddress:   ipRef,
-		VmInterface: vmIfcNullable,
+		VmInterface: makeFKUser(vmInterfaceID),
 	}
 
 	_, httpResp, err := c.IpamAPI.

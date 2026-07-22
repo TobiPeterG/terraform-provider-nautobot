@@ -98,6 +98,7 @@ func TestAccVLANResource_minimal(t *testing.T) {
 					resource.TestCheckResourceAttr(vlanResourceName, "vlan_group_id", ""),
 					resource.TestCheckResourceAttr(vlanResourceName, "role_id", ""),
 					resource.TestCheckResourceAttr(vlanResourceName, "tags_ids.#", "0"),
+					resource.TestCheckResourceAttrSet(vlanResourceName, "display"),
 				),
 			},
 			{

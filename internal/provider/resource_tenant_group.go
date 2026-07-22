@@ -28,9 +28,8 @@ type tenantGroupModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	Parent      types.String `tfsdk:"parent"`
+	ParentID    types.String `tfsdk:"parent_id"`
 	Created     types.String `tfsdk:"created"`
-	LastUpdated types.String `tfsdk:"last_updated"`
 	Display     types.String `tfsdk:"display"`
 	URL         types.String `tfsdk:"url"`
 	NaturalSlug types.String `tfsdk:"natural_slug"`
@@ -69,7 +68,7 @@ func (r *TenantGroupResource) Schema(_ context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"parent": rschema.StringAttribute{
+			"parent_id": rschema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString(""),
@@ -84,10 +83,6 @@ func (r *TenantGroupResource) Schema(_ context.Context, _ resource.SchemaRequest
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"last_updated": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Tenant group's last update date (RFC3339).",
 			},
 			"display": rschema.StringAttribute{
 				Computed:    true,
@@ -131,7 +126,7 @@ func (r *TenantGroupResource) Create(ctx context.Context, req resource.CreateReq
 	if v := plan.Description.ValueString(); v != "" {
 		body.Description = &v
 	}
-	if v := plan.Parent.ValueString(); v != "" {
+	if v := plan.ParentID.ValueString(); v != "" {
 		body.Parent = makeFKUser(v)
 	}
 
@@ -209,8 +204,8 @@ func (r *TenantGroupResource) Update(ctx context.Context, req resource.UpdateReq
 		v := plan.Description.ValueString()
 		patch.Description = &v
 	}
-	if !plan.Parent.Equal(state.Parent) {
-		patch.Parent = makeFKUser(plan.Parent.ValueString())
+	if !plan.ParentID.Equal(state.ParentID) {
+		patch.Parent = makeFKUser(plan.ParentID.ValueString())
 	}
 
 	_, httpResp, err := c.TenancyAPI.
@@ -246,7 +241,7 @@ func (r *TenantGroupResource) Delete(ctx context.Context, req resource.DeleteReq
 	httpResp, err := r.client.Client.TenancyAPI.
 		TenancyTenantGroupsDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete tenant group", httpErr(err, httpResp))
 		return
 	}
@@ -275,10 +270,8 @@ func (r *TenantGroupResource) readModel(ctx context.Context, id string) (tenantG
 	out.Name = types.StringValue(m.Name)
 
 	out.Description = types.StringValue(derefStr(m.Description))
-	out.Parent = nullableFKStr(m.Parent)
+	out.ParentID = nullableFKStr(m.Parent)
 	out.Created = nullableTimeStr(m.Created)
-	out.LastUpdated = nullableTimeStr(m.LastUpdated)
-
 	out.Display = types.StringValue(m.Display)
 	out.URL = types.StringValue(m.Url)
 	out.NaturalSlug = types.StringValue(m.NaturalSlug)

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -150,31 +149,20 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		for _, cluster := range results {
 			var item clusterItemModel
 
-			idStr := ""
-			if cluster.Id != nil {
-				idStr = *cluster.Id
+			if cluster.Id == nil || *cluster.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid cluster data",
+					"Clusters list returned an item with no id (name: "+cluster.Name+")",
+				)
+				return
 			}
-			item.ID = types.StringValue(idStr)
+			item.ID = types.StringValue(*cluster.Id)
 
 			item.Name = types.StringValue(cluster.Name)
 
-			commentsStr := ""
-			if cluster.Comments != nil {
-				commentsStr = *cluster.Comments
-			}
-			item.Comments = types.StringValue(commentsStr)
-
-			createdStr := ""
-			if cluster.Created.IsSet() && cluster.Created.Get() != nil {
-				createdStr = cluster.Created.Get().Format(time.RFC3339)
-			}
-			item.Created = types.StringValue(createdStr)
-
-			lastUpdatedStr := ""
-			if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
-				lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
-			}
-			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.Comments = types.StringValue(derefStr(cluster.Comments))
+			item.Created = nullableTimeStr(cluster.Created)
+			item.LastUpdated = nullableTimeStr(cluster.LastUpdated)
 
 			if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
 				item.ClusterTypeID = types.StringValue(*cluster.ClusterType.Id.String)
@@ -182,35 +170,9 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 				item.ClusterTypeID = types.StringValue("")
 			}
 
-			if cluster.ClusterGroup.IsSet() {
-				if cg := cluster.ClusterGroup.Get(); cg != nil && cg.Id != nil && cg.Id.String != nil {
-					item.ClusterGroupID = types.StringValue(*cg.Id.String)
-				} else {
-					item.ClusterGroupID = types.StringValue("")
-				}
-			} else {
-				item.ClusterGroupID = types.StringValue("")
-			}
-
-			if cluster.Tenant.IsSet() {
-				if t := cluster.Tenant.Get(); t != nil && t.Id != nil && t.Id.String != nil {
-					item.TenantID = types.StringValue(*t.Id.String)
-				} else {
-					item.TenantID = types.StringValue("")
-				}
-			} else {
-				item.TenantID = types.StringValue("")
-			}
-
-			if cluster.Location.IsSet() {
-				if l := cluster.Location.Get(); l != nil && l.Id != nil && l.Id.String != nil {
-					item.LocationID = types.StringValue(*l.Id.String)
-				} else {
-					item.LocationID = types.StringValue("")
-				}
-			} else {
-				item.LocationID = types.StringValue("")
-			}
+			item.ClusterGroupID = nullableFKStr(cluster.ClusterGroup)
+			item.TenantID = nullableFKStr(cluster.Tenant)
+			item.LocationID = nullableFKStr(cluster.Location)
 
 			if len(cluster.Tags) > 0 {
 				tagVals := make([]attr.Value, 0, len(cluster.Tags))

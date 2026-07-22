@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -180,33 +179,13 @@ func (d *VLANDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	vlanID := *vlan.Id
 	data.ID = types.StringValue(vlanID)
 
-	createdStr := ""
-	if vlan.Created.IsSet() && vlan.Created.Get() != nil {
-		createdStr = vlan.Created.Get().Format(time.RFC3339)
-	}
-	lastUpdatedStr := ""
-	if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
-		lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
-	}
-
-	desc := ""
-	if vlan.Description != nil {
-		desc = *vlan.Description
-	}
-
 	data.Vid = types.Int64Value(int64(vlan.Vid))
 	data.Name = types.StringValue(vlan.Name)
-	data.Description = types.StringValue(desc)
-	data.Created = types.StringValue(createdStr)
-	data.LastUpdated = types.StringValue(lastUpdatedStr)
+	data.Description = types.StringValue(derefStr(vlan.Description))
+	data.Created = nullableTimeStr(vlan.Created)
+	data.LastUpdated = nullableTimeStr(vlan.LastUpdated)
 
-	vlanGroupID := ""
-	if vlan.VlanGroup.IsSet() {
-		if vg := vlan.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
-			vlanGroupID = *vg.Id.String
-		}
-	}
-	data.VLANGroupID = types.StringValue(vlanGroupID)
+	data.VLANGroupID = nullableFKStr(vlan.VlanGroup)
 
 	statusName := ""
 	if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
@@ -219,21 +198,8 @@ func (d *VLANDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	}
 	data.Status = types.StringValue(statusName)
 
-	tenantID := ""
-	if vlan.Tenant.IsSet() {
-		if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			tenantID = *tenant.Id.String
-		}
-	}
-	data.TenantID = types.StringValue(tenantID)
-
-	roleID := ""
-	if vlan.Role.IsSet() {
-		if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-			roleID = *role.Id.String
-		}
-	}
-	data.RoleID = types.StringValue(roleID)
+	data.TenantID = nullableFKStr(vlan.Tenant)
+	data.RoleID = nullableFKStr(vlan.Role)
 
 	if len(vlan.Tags) > 0 {
 		tagVals := make([]attr.Value, 0, len(vlan.Tags))

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -158,36 +157,15 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	if v := plan.ClusterGroupID.ValueString(); v != "" {
-		cgVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(v),
-			},
-		}
-		var cg nb.NullableApprovalWorkflowUser
-		cg.Set(&cgVal)
-		body.ClusterGroup = cg
+		body.ClusterGroup = makeFKUser(v)
 	}
 
 	if v := plan.TenantID.ValueString(); v != "" {
-		tenantVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(v),
-			},
-		}
-		var tenant nb.NullableApprovalWorkflowUser
-		tenant.Set(&tenantVal)
-		body.Tenant = tenant
+		body.Tenant = makeFKUser(v)
 	}
 
 	if v := plan.LocationID.ValueString(); v != "" {
-		locVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(v),
-			},
-		}
-		var loc nb.NullableApprovalWorkflowUser
-		loc.Set(&locVal)
-		body.Location = loc
+		body.Location = makeFKUser(v)
 	}
 
 	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
@@ -302,48 +280,15 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	if !plan.ClusterGroupID.Equal(state.ClusterGroupID) {
-		if plan.ClusterGroupID.ValueString() == "" {
-			patch.ClusterGroup.Set(nil)
-		} else {
-			cgVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.ClusterGroupID.ValueString()),
-				},
-			}
-			var cg nb.NullableApprovalWorkflowUser
-			cg.Set(&cgVal)
-			patch.ClusterGroup = cg
-		}
+		patch.ClusterGroup = makeFKUser(plan.ClusterGroupID.ValueString())
 	}
 
 	if !plan.TenantID.Equal(state.TenantID) {
-		if plan.TenantID.ValueString() == "" {
-			patch.Tenant.Set(nil)
-		} else {
-			tVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.TenantID.ValueString()),
-				},
-			}
-			var t nb.NullableApprovalWorkflowUser
-			t.Set(&tVal)
-			patch.Tenant = t
-		}
+		patch.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if !plan.LocationID.Equal(state.LocationID) {
-		if plan.LocationID.ValueString() == "" {
-			patch.Location.Set(nil)
-		} else {
-			lVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.LocationID.ValueString()),
-				},
-			}
-			var l nb.NullableApprovalWorkflowUser
-			l.Set(&lVal)
-			patch.Location = l
-		}
+		patch.Location = makeFKUser(plan.LocationID.ValueString())
 	}
 
 	if !plan.TagsIDs.Equal(state.TagsIDs) {
@@ -397,7 +342,7 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationClustersDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete cluster", httpErr(err, httpResp))
 		return
 	}
@@ -431,41 +376,11 @@ func (r *ClusterResource) readModel(ctx context.Context, id string) (clusterMode
 		m.ClusterTypeID = types.StringValue("")
 	}
 
-	if cl.Comments != nil {
-		m.Comments = types.StringValue(*cl.Comments)
-	} else {
-		m.Comments = types.StringValue("")
-	}
+	m.Comments = types.StringValue(derefStr(cl.Comments))
 
-	if cl.ClusterGroup.IsSet() {
-		if cg := cl.ClusterGroup.Get(); cg != nil && cg.Id != nil && cg.Id.String != nil {
-			m.ClusterGroupID = types.StringValue(*cg.Id.String)
-		} else {
-			m.ClusterGroupID = types.StringValue("")
-		}
-	} else {
-		m.ClusterGroupID = types.StringValue("")
-	}
-
-	if cl.Tenant.IsSet() {
-		if t := cl.Tenant.Get(); t != nil && t.Id != nil && t.Id.String != nil {
-			m.TenantID = types.StringValue(*t.Id.String)
-		} else {
-			m.TenantID = types.StringValue("")
-		}
-	} else {
-		m.TenantID = types.StringValue("")
-	}
-
-	if cl.Location.IsSet() {
-		if l := cl.Location.Get(); l != nil && l.Id != nil && l.Id.String != nil {
-			m.LocationID = types.StringValue(*l.Id.String)
-		} else {
-			m.LocationID = types.StringValue("")
-		}
-	} else {
-		m.LocationID = types.StringValue("")
-	}
+	m.ClusterGroupID = nullableFKStr(cl.ClusterGroup)
+	m.TenantID = nullableFKStr(cl.Tenant)
+	m.LocationID = nullableFKStr(cl.Location)
 
 	if len(cl.Tags) > 0 {
 		vals := make([]attr.Value, 0, len(cl.Tags))
@@ -479,11 +394,7 @@ func (r *ClusterResource) readModel(ctx context.Context, id string) (clusterMode
 		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 	}
 
-	if cl.Created.IsSet() && cl.Created.Get() != nil {
-		m.Created = types.StringValue(cl.Created.Get().Format(time.RFC3339))
-	} else {
-		m.Created = types.StringNull()
-	}
+	m.Created = nullableTimeStr(cl.Created)
 
 	return m, true, diags
 }

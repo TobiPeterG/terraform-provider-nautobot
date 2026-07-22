@@ -34,14 +34,13 @@ output "resource_tenant" {
 
 - `comments` (String) Tenant's comments.
 - `description` (String) Tenant's description.
-- `tenant_group` (String) UUID of the tenant group this tenant belongs to.
+- `tenant_group_id` (String) UUID of the tenant group this tenant belongs to.
 
 ### Read-Only
 
 - `created` (String) Tenant's creation date (RFC3339).
 - `display` (String) Tenant's display name.
 - `id` (String) Tenant's UUID.
-- `last_updated` (String) Tenant's last update date (RFC3339).
 - `natural_slug` (String) Natural slug for the tenant.
 - `notes_url` (String) Notes URL for the tenant.
 - `url` (String) Tenant's URL.

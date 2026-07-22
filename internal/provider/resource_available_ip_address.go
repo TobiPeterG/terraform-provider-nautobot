@@ -310,7 +310,7 @@ func (r *AvailableIPAddressResource) Delete(ctx context.Context, req resource.De
 	httpResp, err := r.client.Client.IpamAPI.
 		IpamIpAddressesDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete IP address", httpErr(err, httpResp))
 		return
 	}

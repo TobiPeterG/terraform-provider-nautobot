@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -180,39 +179,22 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		for _, vlan := range results {
 			var item vlanItemModel
 
-			idStr := ""
-			if vlan.Id != nil {
-				idStr = *vlan.Id
+			if vlan.Id == nil || *vlan.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid VLAN data",
+					"VLANs list returned an item with no id (name: "+vlan.Name+")",
+				)
+				return
 			}
-			item.ID = types.StringValue(idStr)
-
-			createdStr := ""
-			if vlan.Created.IsSet() && vlan.Created.Get() != nil {
-				createdStr = vlan.Created.Get().Format(time.RFC3339)
-			}
-			lastUpdatedStr := ""
-			if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
-				lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
-			}
-
-			descStr := ""
-			if vlan.Description != nil {
-				descStr = *vlan.Description
-			}
+			item.ID = types.StringValue(*vlan.Id)
 
 			item.Vid = types.Int64Value(int64(vlan.Vid))
 			item.Name = types.StringValue(vlan.Name)
-			item.Description = types.StringValue(descStr)
-			item.Created = types.StringValue(createdStr)
-			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.Description = types.StringValue(derefStr(vlan.Description))
+			item.Created = nullableTimeStr(vlan.Created)
+			item.LastUpdated = nullableTimeStr(vlan.LastUpdated)
 
-			vlanGroupID := ""
-			if vlan.VlanGroup.IsSet() {
-				if vg := vlan.VlanGroup.Get(); vg != nil && vg.Id != nil && vg.Id.String != nil {
-					vlanGroupID = *vg.Id.String
-				}
-			}
-			item.VLANGroupID = types.StringValue(vlanGroupID)
+			item.VLANGroupID = nullableFKStr(vlan.VlanGroup)
 
 			statusName := ""
 			if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
@@ -225,21 +207,8 @@ func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			}
 			item.Status = types.StringValue(statusName)
 
-			tenantID := ""
-			if vlan.Tenant.IsSet() {
-				if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-					tenantID = *tenant.Id.String
-				}
-			}
-			item.TenantID = types.StringValue(tenantID)
-
-			roleID := ""
-			if vlan.Role.IsSet() {
-				if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-					roleID = *role.Id.String
-				}
-			}
-			item.RoleID = types.StringValue(roleID)
+			item.TenantID = nullableFKStr(vlan.Tenant)
+			item.RoleID = nullableFKStr(vlan.Role)
 
 			if len(vlan.Tags) > 0 {
 				tagVals := make([]attr.Value, 0, len(vlan.Tags))

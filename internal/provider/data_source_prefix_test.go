@@ -93,7 +93,7 @@ func TestAccPrefixDataSource_byID(t *testing.T) {
 					resource.TestCheckResourceAttr(prefixDataSourceName, "rir_id", ""),
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "namespace_id"),
 					resource.TestCheckResourceAttrPair(prefixDataSourceName, "vlan_id", "nautobot_vlan.v", "id"),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "date_allocated", ""),
+					resource.TestCheckNoResourceAttr(prefixDataSourceName, "date_allocated"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "tags_ids.#", "0"),
 				),
 			},
@@ -130,7 +130,7 @@ func TestAccPrefixDataSource_byVLAN(t *testing.T) {
 					resource.TestCheckResourceAttr(prefixDataSourceName, "role_id", ""),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "rir_id", ""),
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "namespace_id"),
-					resource.TestCheckResourceAttr(prefixDataSourceName, "date_allocated", ""),
+					resource.TestCheckNoResourceAttr(prefixDataSourceName, "date_allocated"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "tags_ids.#", "0"),
 
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "created"),

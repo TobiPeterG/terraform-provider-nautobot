@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -143,33 +142,22 @@ func (d *ClusterTypesDataSource) Read(ctx context.Context, req datasource.ReadRe
 		for _, ct := range results {
 			var item clusterTypeItemModel
 
-			idStr := ""
-			if ct.Id != nil {
-				idStr = *ct.Id
+			if ct.Id == nil || *ct.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid cluster type data",
+					"Cluster types list returned an item with no id (name: "+ct.Name+")",
+				)
+				return
 			}
-			item.ID = types.StringValue(idStr)
-
-			createdStr := ""
-			if ct.Created.IsSet() && ct.Created.Get() != nil {
-				createdStr = ct.Created.Get().Format(time.RFC3339)
-			}
-			lastUpdatedStr := ""
-			if ct.LastUpdated.IsSet() && ct.LastUpdated.Get() != nil {
-				lastUpdatedStr = ct.LastUpdated.Get().Format(time.RFC3339)
-			}
-
-			descStr := ""
-			if ct.Description != nil {
-				descStr = *ct.Description
-			}
+			item.ID = types.StringValue(*ct.Id)
 
 			item.Display = types.StringValue(ct.Display)
 			item.URL = types.StringValue(ct.Url)
 			item.NaturalSlug = types.StringValue(ct.NaturalSlug)
 			item.Name = types.StringValue(ct.Name)
-			item.Description = types.StringValue(descStr)
-			item.Created = types.StringValue(createdStr)
-			item.LastUpdated = types.StringValue(lastUpdatedStr)
+			item.Description = types.StringValue(derefStr(ct.Description))
+			item.Created = nullableTimeStr(ct.Created)
+			item.LastUpdated = nullableTimeStr(ct.LastUpdated)
 			item.NotesURL = types.StringValue(ct.NotesUrl)
 
 			state.ClusterTypes = append(state.ClusterTypes, item)

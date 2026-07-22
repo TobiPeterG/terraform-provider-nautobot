@@ -38,5 +38,5 @@ output "data_tenant_group" {
 - `last_updated` (String) Tenant group's last update date (RFC3339).
 - `natural_slug` (String) Natural slug for the tenant group.
 - `notes_url` (String) Notes URL for the tenant group.
-- `parent` (String) UUID of the parent tenant group.
+- `parent_id` (String) UUID of the parent tenant group.
 - `url` (String) URL of the tenant group.

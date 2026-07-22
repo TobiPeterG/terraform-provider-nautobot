@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -217,36 +216,15 @@ func (r *VirtualMachineResource) Create(ctx context.Context, req resource.Create
 	}
 
 	if plan.TenantID.ValueString() != "" {
-		tVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.TenantID.ValueString()),
-			},
-		}
-		var nt nb.NullableApprovalWorkflowUser
-		nt.Set(&tVal)
-		vm.Tenant = nt
+		vm.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if plan.PlatformID.ValueString() != "" {
-		pVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.PlatformID.ValueString()),
-			},
-		}
-		var np nb.NullableApprovalWorkflowUser
-		np.Set(&pVal)
-		vm.Platform = np
+		vm.Platform = makeFKUser(plan.PlatformID.ValueString())
 	}
 
 	if plan.RoleID.ValueString() != "" {
-		rVal := nb.ApprovalWorkflowUser{
-			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-				String: stringPtr(plan.RoleID.ValueString()),
-			},
-		}
-		var nr nb.NullableApprovalWorkflowUser
-		nr.Set(&rVal)
-		vm.Role = nr
+		vm.Role = makeFKUser(plan.RoleID.ValueString())
 	}
 
 	if plan.SoftwareVersionID.ValueString() != "" {
@@ -385,48 +363,15 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 	}
 
 	if !plan.TenantID.Equal(state.TenantID) {
-		if plan.TenantID.ValueString() == "" {
-			patch.Tenant.Set(nil)
-		} else {
-			tVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.TenantID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&tVal)
-			patch.Tenant = n
-		}
+		patch.Tenant = makeFKUser(plan.TenantID.ValueString())
 	}
 
 	if !plan.PlatformID.Equal(state.PlatformID) {
-		if plan.PlatformID.ValueString() == "" {
-			patch.Platform.Set(nil)
-		} else {
-			pVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.PlatformID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&pVal)
-			patch.Platform = n
-		}
+		patch.Platform = makeFKUser(plan.PlatformID.ValueString())
 	}
 
 	if !plan.RoleID.Equal(state.RoleID) {
-		if plan.RoleID.ValueString() == "" {
-			patch.Role.Set(nil)
-		} else {
-			rVal := nb.ApprovalWorkflowUser{
-				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
-					String: stringPtr(plan.RoleID.ValueString()),
-				},
-			}
-			var n nb.NullableApprovalWorkflowUser
-			n.Set(&rVal)
-			patch.Role = n
-		}
+		patch.Role = makeFKUser(plan.RoleID.ValueString())
 	}
 
 	if !plan.SoftwareVersionID.Equal(state.SoftwareVersionID) {
@@ -494,7 +439,7 @@ func (r *VirtualMachineResource) Delete(ctx context.Context, req resource.Delete
 	httpResp, err := r.client.Client.VirtualizationAPI.
 		VirtualizationVirtualMachinesDestroy(ctx, state.ID.ValueString()).
 		Execute()
-	if err != nil {
+	if err != nil && !isNotFoundResponse(httpResp) {
 		resp.Diagnostics.AddError("failed to delete virtual machine", httpErr(err, httpResp))
 		return
 	}
@@ -554,55 +499,13 @@ func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string)
 		m.Disk = types.Int64Value(0)
 	}
 
-	if vm.Comments != nil {
-		m.Comments = types.StringValue(*vm.Comments)
-	} else {
-		m.Comments = types.StringValue("")
-	}
+	m.Comments = types.StringValue(derefStr(vm.Comments))
 
-	if vm.Tenant.IsSet() {
-		tenant := vm.Tenant.Get()
-		if tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-			m.TenantID = types.StringValue(*tenant.Id.String)
-		} else {
-			m.TenantID = types.StringValue("")
-		}
-	} else {
-		m.TenantID = types.StringValue("")
-	}
+	m.TenantID = nullableFKStr(vm.Tenant)
+	m.PlatformID = nullableFKStr(vm.Platform)
+	m.RoleID = nullableFKStr(vm.Role)
 
-	if vm.Platform.IsSet() {
-		p := vm.Platform.Get()
-		if p != nil && p.Id != nil && p.Id.String != nil {
-			m.PlatformID = types.StringValue(*p.Id.String)
-		} else {
-			m.PlatformID = types.StringValue("")
-		}
-	} else {
-		m.PlatformID = types.StringValue("")
-	}
-
-	if vm.Role.IsSet() {
-		rv := vm.Role.Get()
-		if rv != nil && rv.Id != nil && rv.Id.String != nil {
-			m.RoleID = types.StringValue(*rv.Id.String)
-		} else {
-			m.RoleID = types.StringValue("")
-		}
-	} else {
-		m.RoleID = types.StringValue("")
-	}
-
-	if vm.SoftwareVersion.IsSet() {
-		sv := vm.SoftwareVersion.Get()
-		if sv != nil && sv.Id != nil && sv.Id.String != nil {
-			m.SoftwareVersionID = types.StringValue(*sv.Id.String)
-		} else {
-			m.SoftwareVersionID = types.StringValue("")
-		}
-	} else {
-		m.SoftwareVersionID = types.StringValue("")
-	}
+	m.SoftwareVersionID = nullableSoftwareVersionStr(vm.SoftwareVersion)
 
 	if len(vm.Tags) > 0 {
 		vals := make([]attr.Value, 0, len(vm.Tags))
@@ -616,11 +519,7 @@ func (r *VirtualMachineResource) buildStateModel(ctx context.Context, id string)
 		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 	}
 
-	if vm.Created.IsSet() && vm.Created.Get() != nil {
-		m.Created = types.StringValue(vm.Created.Get().Format(time.RFC3339))
-	} else {
-		m.Created = types.StringNull()
-	}
+	m.Created = nullableTimeStr(vm.Created)
 
 	tflog.Debug(ctx, "read VM", map[string]any{"id": id})
 	return m, true, diags

@@ -1,22 +1,154 @@
 package provider
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-const (
-	testURL    = "http://nautobot:8080"
-	testToken  = "0123456789abcdef0123456789abcdef01234567"
-	testStatus = "Active"
+func testAccAPIClient() *nb.APIClient {
+	cfg := nb.NewConfiguration()
+	cfg.Servers = nb.ServerConfigurations{{URL: testURL + "/api"}}
+	cfg.HTTPClient = &http.Client{
+		Transport: &authRT{base: http.DefaultTransport, token: testToken},
+	}
+	return nb.NewAPIClient(cfg)
+}
+
+func testCaptureResourceID(resourceAddr string, target *string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceAddr]
+		if !ok {
+			return fmt.Errorf("not found: %s", resourceAddr)
+		}
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("%s has an empty ID", resourceAddr)
+		}
+		*target = rs.Primary.ID
+		return nil
+	}
+}
+
+func testCheckTenantAbsent(id *string) resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		if *id == "" {
+			return fmt.Errorf("tenant ID was not captured")
+		}
+		_, resp, err := testAccAPIClient().TenancyAPI.TenancyTenantsRetrieve(context.Background(), *id).Execute()
+		if isNotFoundResponse(resp) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("retrieve tenant %s: %w", *id, err)
+		}
+		return fmt.Errorf("tenant %s still exists", *id)
+	}
+}
+
+func testCheckTenantGroupAbsent(id *string) resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		if *id == "" {
+			return fmt.Errorf("tenant group ID was not captured")
+		}
+		_, resp, err := testAccAPIClient().TenancyAPI.TenancyTenantGroupsRetrieve(context.Background(), *id).Execute()
+		if isNotFoundResponse(resp) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("retrieve tenant group %s: %w", *id, err)
+		}
+		return fmt.Errorf("tenant group %s still exists", *id)
+	}
+}
+
+func testMutateTenantByID(t *testing.T, id, name, description string) {
+	t.Helper()
+	if id == "" {
+		t.Fatal("cannot mutate tenant: ID was not captured")
+	}
+
+	patch := nb.PatchedTenantRequest{Name: &name, Description: &description}
+	_, resp, err := testAccAPIClient().TenancyAPI.
+		TenancyTenantsPartialUpdate(context.Background(), id).
+		PatchedTenantRequest(patch).
+		Execute()
+	if err != nil {
+		t.Fatalf("mutate tenant %s: %s", id, httpErr(err, resp))
+	}
+}
+
+func testMutateTenantGroupByID(t *testing.T, id, name, description string) {
+	t.Helper()
+	if id == "" {
+		t.Fatal("cannot mutate tenant group: ID was not captured")
+	}
+
+	patch := nb.PatchedTenantGroupRequest{Name: &name, Description: &description}
+	_, resp, err := testAccAPIClient().TenancyAPI.
+		TenancyTenantGroupsPartialUpdate(context.Background(), id).
+		PatchedTenantGroupRequest(patch).
+		Execute()
+	if err != nil {
+		t.Fatalf("mutate tenant group %s: %s", id, httpErr(err, resp))
+	}
+}
+
+func testDeleteTenantOutOfBand(resourceAddr string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceAddr]
+		if !ok || rs.Primary.ID == "" {
+			return fmt.Errorf("cannot delete missing tenant resource: %s", resourceAddr)
+		}
+		resp, err := testAccAPIClient().TenancyAPI.
+			TenancyTenantsDestroy(context.Background(), rs.Primary.ID).
+			Execute()
+		if err != nil && !isNotFoundResponse(resp) {
+			return fmt.Errorf("delete tenant %s: %s", rs.Primary.ID, httpErr(err, resp))
+		}
+		return nil
+	}
+}
+
+func testDeleteTenantGroupOutOfBand(resourceAddr string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceAddr]
+		if !ok || rs.Primary.ID == "" {
+			return fmt.Errorf("cannot delete missing tenant group resource: %s", resourceAddr)
+		}
+		resp, err := testAccAPIClient().TenancyAPI.
+			TenancyTenantGroupsDestroy(context.Background(), rs.Primary.ID).
+			Execute()
+		if err != nil && !isNotFoundResponse(resp) {
+			return fmt.Errorf("delete tenant group %s: %s", rs.Primary.ID, httpErr(err, resp))
+		}
+		return nil
+	}
+}
+
+var (
+	testURL   = strings.TrimRight(testEnvironmentValue("NAUTOBOT_TEST_URL", "http://nautobot:8080"), "/")
+	testToken = testEnvironmentValue("NAUTOBOT_TEST_TOKEN", "0123456789abcdef0123456789abcdef01234567")
 )
+
+const testStatus = "Active"
+
+func testEnvironmentValue(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
 
 func testAccSeedForTest(t *testing.T) int64 {
 	h := fnv.New64a()
@@ -178,6 +310,35 @@ func testCheckListItemHasAttrs(dsAddr, listAttr, matchField, matchValue string, 
 		}
 
 		return nil
+	}
+}
+
+func testCheckListItemAttrNull(dsAddr, listAttr, matchField, matchValue, field string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[dsAddr]
+		if !ok {
+			return fmt.Errorf("not found: %s", dsAddr)
+		}
+
+		rawN := rs.Primary.Attributes[listAttr+".#"]
+		n, err := strconv.Atoi(rawN)
+		if err != nil {
+			return fmt.Errorf("%s: cannot parse %s.#=%q: %w", dsAddr, listAttr, rawN, err)
+		}
+
+		for i := 0; i < n; i++ {
+			matchKey := fmt.Sprintf("%s.%d.%s", listAttr, i, matchField)
+			if rs.Primary.Attributes[matchKey] != matchValue {
+				continue
+			}
+			key := fmt.Sprintf("%s.%d.%s", listAttr, i, field)
+			if _, exists := rs.Primary.Attributes[key]; exists {
+				return fmt.Errorf("%s: %s expected to be null, got %q", dsAddr, key, rs.Primary.Attributes[key])
+			}
+			return nil
+		}
+
+		return fmt.Errorf("%s: expected to find %s with %s=%q", dsAddr, listAttr, matchField, matchValue)
 	}
 }
 

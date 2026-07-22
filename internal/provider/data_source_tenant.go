@@ -19,17 +19,17 @@ type TenantDataSource struct {
 }
 
 type tenantDataSourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Comments    types.String `tfsdk:"comments"`
-	TenantGroup types.String `tfsdk:"tenant_group"`
-	Created     types.String `tfsdk:"created"`
-	LastUpdated types.String `tfsdk:"last_updated"`
-	Display     types.String `tfsdk:"display"`
-	URL         types.String `tfsdk:"url"`
-	NaturalSlug types.String `tfsdk:"natural_slug"`
-	NotesURL    types.String `tfsdk:"notes_url"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	Comments      types.String `tfsdk:"comments"`
+	TenantGroupID types.String `tfsdk:"tenant_group_id"`
+	Created       types.String `tfsdk:"created"`
+	LastUpdated   types.String `tfsdk:"last_updated"`
+	Display       types.String `tfsdk:"display"`
+	URL           types.String `tfsdk:"url"`
+	NaturalSlug   types.String `tfsdk:"natural_slug"`
+	NotesURL      types.String `tfsdk:"notes_url"`
 }
 
 func NewTenantDataSource() datasource.DataSource {
@@ -60,7 +60,7 @@ func (d *TenantDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 				Description: "Tenant's comments.",
 				Computed:    true,
 			},
-			"tenant_group": dsschema.StringAttribute{
+			"tenant_group_id": dsschema.StringAttribute{
 				Description: "UUID of the tenant group this tenant belongs to.",
 				Computed:    true,
 			},
@@ -156,7 +156,7 @@ func (d *TenantDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	data.NotesURL = types.StringValue(m.NotesUrl)
 	data.Description = types.StringValue(derefStr(m.Description))
 	data.Comments = types.StringValue(derefStr(m.Comments))
-	data.TenantGroup = nullableFKStr(m.TenantGroup)
+	data.TenantGroupID = nullableFKStr(m.TenantGroup)
 	data.Created = nullableTimeStr(m.Created)
 	data.LastUpdated = nullableTimeStr(m.LastUpdated)
 

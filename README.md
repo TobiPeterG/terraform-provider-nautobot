@@ -60,17 +60,50 @@ resource "nautobot_manufacturer" "new" {
 
 If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
 
+Please read the [contributor guide](CONTRIBUTORS.md) before opening a pull request.
+
 There are a few make targets you can leverage:
 
 - `make install`: To compile the provider.
+- `make fmt`: Format all tracked Go files with `gofmt`.
+- `make fmt-check`: Check Go formatting without modifying files.
 - `make docs`: To generate or update documentation.
 - `make local`: Test local version of the provider.
-- `make testacc`: To run the full suite of Acceptance tests.
+- `make testacc`: Start or reuse a local Nautobot instance and run the full acceptance test suite against it.
+- `make testacc-run`: Run acceptance tests against an already-running Nautobot instance without managing Compose.
+- `make testacc-local-up`: Start the reusable local Nautobot instance without running tests.
+- `make testacc-local-down`: Remove the local Nautobot containers and volumes.
 
-_Note:_ Acceptance tests create real resources, and cost money to run.
+_Note:_ Acceptance tests create real objects in the local Nautobot instance. An interrupted or
+failed run may leave test objects behind until the instance is removed.
 
 ```sh
 $ make testacc
+```
+
+OpenTofu is used when available; otherwise Terraform is used. Select one explicitly with
+`TF_TOOL=opentofu make testacc` or `TF_TOOL=terraform make testacc`.
+
+To rerun tests without invoking Compose, use:
+
+```sh
+$ make testacc-run
+```
+
+Individual acceptance tests can be selected with `TEST` and `TESTARGS`:
+
+```sh
+$ make testacc-run TEST=./internal/provider/... TESTARGS='-run TestAccTenantResource_drift'
+```
+
+By default, `testacc-run` connects to `http://localhost:8080`. Override
+`NAUTOBOT_TEST_URL` and `NAUTOBOT_TEST_TOKEN` when targeting another instance.
+
+The local Nautobot instance remains running after the tests finish or fail, so subsequent
+acceptance-test runs reuse it. Remove it explicitly with:
+
+```sh
+$ make testacc-local-down
 ```
 
 ## Credits
