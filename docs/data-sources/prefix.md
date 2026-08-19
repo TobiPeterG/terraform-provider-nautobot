@@ -3,24 +3,24 @@
 page_title: "nautobot_prefix Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Retrieves information about a Prefix in Nautobot by either its ID or associated VLAN ID.
+  Retrieves information about a Prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.
 ---
 
 # nautobot_prefix (Data Source)
 
-Retrieves information about a Prefix in Nautobot by either its ID or associated VLAN ID.
+Retrieves information about a Prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.
 
 ## Example Usage
 
 ```terraform
-// This fetches the VLAN with the given name
-data "nautobot_vlan" "example" {
-  name = "My VLAN Name"
+data "nautobot_namespace" "global" {
+  name = "Global"
 }
 
-// So we can get the first prefix belonging to it
+// Fetch a prefix by its exact CIDR and namespace
 data "nautobot_prefix" "example" {
-  vlan_id = data.nautobot_vlan.example.id
+  prefix       = "10.151.0.0/16"
+  namespace_id = data.nautobot_namespace.global.id
 }
 
 output "data_prefix" {
@@ -42,8 +42,9 @@ output "data_prefix_parent" {
 
 ### Optional
 
-- `id` (String) The UUID of the prefix. Exactly one of `id` or `vlan_id` must be provided.
-- `vlan_id` (String) The UUID of the VLAN to retrieve the prefix for. Exactly one of `id` or `vlan_id` must be provided.
+- `id` (String) The UUID of the prefix. Provide either `id`, or both `prefix` and `namespace_id`.
+- `namespace_id` (String) The namespace UUID associated with the prefix. Must be provided together with `prefix` when `id` is not used.
+- `prefix` (String) The exact prefix in CIDR notation. Must be provided together with `namespace_id` when `id` is not used.
 
 ### Read-Only
 
@@ -54,12 +55,10 @@ output "data_prefix_parent" {
 - `display` (String) Human-friendly display value.
 - `ip_version` (Number) IP version of the prefix (4 or 6).
 - `last_updated` (String) The last update date of the prefix (RFC3339).
-- `namespace_id` (String) The ID of the namespace associated with the prefix.
 - `natural_slug` (String) Natural slug for the prefix.
 - `network` (String) IPv4 or IPv6 network address.
 - `notes_url` (String) Notes URL for the prefix.
 - `parent_id` (String) The ID of the parent of this prefix.
-- `prefix` (String) The prefix in CIDR notation.
 - `prefix_length` (Number) Length of the network prefix, in bits.
 - `rir_id` (String) The ID of the RIR associated with the prefix.
 - `role_id` (String) The ID of the role associated with the prefix.
@@ -67,3 +66,4 @@ output "data_prefix_parent" {
 - `tags_ids` (List of String) The IDs of the tags associated with the prefix.
 - `tenant_id` (String) The ID of the tenant associated with the prefix.
 - `url` (String) API URL of the prefix.
+- `vlan_id` (String) The UUID of the VLAN associated with the prefix.
