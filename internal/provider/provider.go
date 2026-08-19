@@ -6,15 +6,20 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	nb "github.com/nautobot/go-nautobot/v3"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	pSchema "github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+const defaultStatusRequestTimeoutSeconds int64 = 10
 
 type nautobotProvider struct{ version string }
 
@@ -23,6 +28,7 @@ type providerModel struct {
 	Token                 types.String `tfsdk:"token"`
 	SkipVersionCheck      types.Bool   `tfsdk:"skip_version_check"`
 	InsecureSkipTLSVerify types.Bool   `tfsdk:"insecure_skip_tls_verify"`
+	StatusRequestTimeout  types.Int64  `tfsdk:"status_request_timeout"`
 }
 
 type APIClient struct {
@@ -60,6 +66,13 @@ func (p *nautobotProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 				Description: "Disable TLS certificate verification when connecting to Nautobot. " +
 					"Use only for testing.",
 			},
+			"status_request_timeout": pSchema.Int64Attribute{
+				Optional:    true,
+				Description: "Timeout in seconds for the Nautobot status request used to verify version compatibility. Defaults to 10 seconds. Set to 0 to disable the timeout.",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+				},
+			},
 		},
 	}
 }
@@ -84,6 +97,11 @@ func (p *nautobotProvider) Configure(ctx context.Context, req provider.Configure
 	insecureSkipTLS := false
 	if !cfg.InsecureSkipTLSVerify.IsNull() && !cfg.InsecureSkipTLSVerify.IsUnknown() {
 		insecureSkipTLS = cfg.InsecureSkipTLSVerify.ValueBool()
+	}
+
+	statusRequestTimeoutSeconds := defaultStatusRequestTimeoutSeconds
+	if !cfg.StatusRequestTimeout.IsNull() && !cfg.StatusRequestTimeout.IsUnknown() {
+		statusRequestTimeoutSeconds = cfg.StatusRequestTimeout.ValueInt64()
 	}
 
 	conf := nb.NewConfiguration()
@@ -113,9 +131,9 @@ func (p *nautobotProvider) Configure(ctx context.Context, req provider.Configure
 	api := nb.NewAPIClient(conf)
 
 	if !skipVersionCheck {
-		if err := p.checkVersionCompatibility(ctx, api); err != nil {
+		if err := p.checkVersionCompatibility(ctx, api, time.Duration(statusRequestTimeoutSeconds)*time.Second); err != nil {
 			resp.Diagnostics.AddError(
-				"Incompatible Nautobot version",
+				"Failed to verify Nautobot version",
 				err.Error(),
 			)
 			return
@@ -179,15 +197,28 @@ func (p *nautobotProvider) DataSources(_ context.Context) []func() datasource.Da
 	}
 }
 
-func (p *nautobotProvider) checkVersionCompatibility(ctx context.Context, api *nb.APIClient) error {
-	status, httpResp, err := api.StatusAPI.StatusRetrieve(ctx).Execute()
+func (p *nautobotProvider) checkVersionCompatibility(ctx context.Context, api *nb.APIClient, timeout time.Duration) error {
+	statusCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		statusCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+
+	status, httpResp, err := api.StatusAPI.StatusRetrieve(statusCtx).Execute()
 	if err != nil {
+		if timeout > 0 && statusCtx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("Nautobot /api/status/ request timed out after %s", timeout)
+		}
 		if httpResp != nil {
 			return fmt.Errorf("failed to retrieve Nautobot status: %s (HTTP %s)", err, httpResp.Status)
 		}
 		return fmt.Errorf("failed to retrieve Nautobot status: %w", err)
 	}
 
+	if status == nil || status.NautobotVersion == nil {
+		return fmt.Errorf("status endpoint of Nautobot did not return a version")
+	}
 	nautobotVersion := strings.TrimSpace(*status.NautobotVersion)
 	if nautobotVersion == "" {
 		return fmt.Errorf("status endpoint of Nautobot did not return a version")

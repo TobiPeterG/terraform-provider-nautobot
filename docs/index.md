@@ -40,3 +40,4 @@ provider "nautobot" {
 
 - `insecure_skip_tls_verify` (Boolean) Disable TLS certificate verification when connecting to Nautobot. Use only for testing.
 - `skip_version_check` (Boolean) Skip Nautobot version compatibility check. Use with caution.
+- `status_request_timeout` (Number) Timeout in seconds for the Nautobot status request used to verify version compatibility. Defaults to 10 seconds. Set to 0 to disable the timeout.
