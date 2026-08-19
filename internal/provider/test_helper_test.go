@@ -491,6 +491,19 @@ func testCheckManufacturerInListHasAttrs(dsAddr, mName string, want map[string]s
 	return testCheckListItemHasAttrs(dsAddr, "manufacturers", "name", mName, want, requiredComputed)
 }
 
+func testCheckNamespacesCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
+	return testCountAtLeast(dsAddr, "namespaces", min)
+}
+
+func testFindNamespaceIndexByName(dsAddr, wantName string) resource.TestCheckFunc {
+	return testFindListIndexByAttr(dsAddr, "namespaces", "name", wantName)
+}
+
+func testCheckNamespaceInListHasAttrs(dsAddr, namespaceName string, want map[string]string) resource.TestCheckFunc {
+	requiredComputed := []string{"id", "display", "url", "natural_slug", "created", "last_updated", "notes_url"}
+	return testCheckListItemHasAttrs(dsAddr, "namespaces", "name", namespaceName, want, requiredComputed)
+}
+
 func testCheckClustersCountAtLeast(dsAddr string, min int) resource.TestCheckFunc {
 	return testCountAtLeast(dsAddr, "clusters", min)
 }
