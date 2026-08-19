@@ -33,7 +33,7 @@ data "nautobot_prefix" "test" {
 `, prefixCIDR, baseName, baseVid, testStatus, "")
 }
 
-func testAccPrefixDataSourceConfigByVLAN(prefixCIDR string, baseName string, baseVid int) string {
+func testAccPrefixDataSourceConfigByPrefix(prefixCIDR string, baseName string, baseVid int) string {
 	return testAccProviderConfig() + fmt.Sprintf(`
 resource "nautobot_vlan" "v" {
   name   = "%[2]s-vlan"
@@ -48,9 +48,14 @@ resource "nautobot_prefix" "test" {
   tenant_id = "%[5]s"
 }
 
+data "nautobot_namespace" "global" {
+  name = "Global"
+}
+
 data "nautobot_prefix" "test" {
-  depends_on = [nautobot_prefix.test]
-  vlan_id = nautobot_prefix.test.vlan_id
+  depends_on   = [nautobot_prefix.test]
+  prefix       = "%[1]s"
+  namespace_id = data.nautobot_namespace.global.id
 }
 `, prefixCIDR, baseName, baseVid, testStatus, "")
 }
@@ -104,11 +109,11 @@ func TestAccPrefixDataSource_byID(t *testing.T) {
 	})
 }
 
-func TestAccPrefixDataSource_byVLAN(t *testing.T) {
+func TestAccPrefixDataSource_byPrefix(t *testing.T) {
 	t.Parallel()
 
 	seed := testAccSeedForTest(t)
-	baseName := fmt.Sprintf("tfacc-ds-prefix-byvlan-%d", seed)
+	baseName := fmt.Sprintf("tfacc-ds-prefix-byprefix-%d", seed)
 	baseVid := testAccVLANVid(seed, 4)
 	prefixCIDR := testAccPrefixCIDR(seed, 23)
 
@@ -117,11 +122,12 @@ func TestAccPrefixDataSource_byVLAN(t *testing.T) {
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPrefixDataSourceConfigByVLAN(prefixCIDR, baseName, baseVid),
+				Config: testAccPrefixDataSourceConfigByPrefix(prefixCIDR, baseName, baseVid),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet(prefixDataSourceName, "id"),
 					resource.TestCheckResourceAttrPair(prefixDataSourceName, "vlan_id", "nautobot_vlan.v", "id"),
 					resource.TestCheckResourceAttr(prefixDataSourceName, "prefix", prefixCIDR),
+					resource.TestCheckResourceAttrPair(prefixDataSourceName, "namespace_id", "nautobot_prefix.test", "namespace_id"),
 
 					resource.TestCheckResourceAttr(prefixDataSourceName, "tenant_id", ""),
 

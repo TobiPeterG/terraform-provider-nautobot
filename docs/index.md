@@ -22,8 +22,9 @@ terraform {
 }
 
 provider "nautobot" {
-  url   = "https://my.instance.com/api"
-  token = "MyAPIToken0000abcdefghijklmnopqrstuvwxyz"
+  url                            = "https://my.instance.com/api"
+  token                          = "MyAPIToken0000abcdefghijklmnopqrstuvwxyz"
+  status_request_timeout_seconds = 10
 }
 ```
 

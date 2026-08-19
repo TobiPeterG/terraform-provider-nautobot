@@ -55,21 +55,21 @@ func (d *PrefixDataSource) Metadata(_ context.Context, req datasource.MetadataRe
 
 func (d *PrefixDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = dsschema.Schema{
-		Description: "Retrieves information about a Prefix in Nautobot by either its ID or associated VLAN ID.",
+		Description: "Retrieves information about a Prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.",
 		Attributes: map[string]dsschema.Attribute{
 			"id": dsschema.StringAttribute{
-				Description: "The UUID of the prefix. Exactly one of `id` or `vlan_id` must be provided.",
+				Description: "The UUID of the prefix. Provide either `id`, or both `prefix` and `namespace_id`.",
 				Optional:    true,
 				Computed:    true,
 			},
 			"vlan_id": dsschema.StringAttribute{
-				Description: "The UUID of the VLAN to retrieve the prefix for. Exactly one of `id` or `vlan_id` must be provided.",
-				Optional:    true,
+				Description: "The UUID of the VLAN associated with the prefix.",
 				Computed:    true,
 			},
 
 			"prefix": dsschema.StringAttribute{
-				Description: "The prefix in CIDR notation.",
+				Description: "The exact prefix in CIDR notation. Must be provided together with `namespace_id` when `id` is not used.",
+				Optional:    true,
 				Computed:    true,
 			},
 			"description": dsschema.StringAttribute{
@@ -97,7 +97,8 @@ func (d *PrefixDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 				Computed:    true,
 			},
 			"namespace_id": dsschema.StringAttribute{
-				Description: "The ID of the namespace associated with the prefix.",
+				Description: "The namespace UUID associated with the prefix. Must be provided together with `prefix` when `id` is not used.",
+				Optional:    true,
 				Computed:    true,
 			},
 			"created": dsschema.StringAttribute{
@@ -179,22 +180,31 @@ func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	c := d.client.Client
 
 	idStr := data.ID.ValueString()
-	vlanIDStr := data.VLANID.ValueString()
+	prefixStr := data.Prefix.ValueString()
+	namespaceIDStr := data.NamespaceID.ValueString()
 
 	idProvided := idStr != ""
-	vlanProvided := vlanIDStr != ""
+	prefixProvided := prefixStr != ""
+	namespaceProvided := namespaceIDStr != ""
 
-	if !idProvided && !vlanProvided {
+	if !idProvided && !prefixProvided && !namespaceProvided {
 		resp.Diagnostics.AddError(
 			"Missing selector",
-			"Either `id` or `vlan_id` must be provided.",
+			"Provide either `id`, or both `prefix` and `namespace_id`.",
 		)
 		return
 	}
-	if idProvided && vlanProvided {
+	if idProvided && (prefixProvided || namespaceProvided) {
 		resp.Diagnostics.AddError(
 			"Conflicting selectors",
-			"`id` and `vlan_id` cannot both be set. Provide exactly one.",
+			"`id` cannot be combined with `prefix` or `namespace_id`. Provide either `id`, or both `prefix` and `namespace_id`.",
+		)
+		return
+	}
+	if !idProvided && (!prefixProvided || !namespaceProvided) {
+		resp.Diagnostics.AddError(
+			"Incomplete prefix selector",
+			"`prefix` and `namespace_id` must be provided together.",
 		)
 		return
 	}
@@ -217,11 +227,12 @@ func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	} else {
 		rsp, httpResp, err := c.IpamAPI.
 			IpamPrefixesList(ctx).
-			VlanId([]*string{&vlanIDStr}).
+			Prefix([]string{prefixStr}).
+			Namespace([]string{namespaceIDStr}).
 			Execute()
 		if err != nil {
 			resp.Diagnostics.AddError(
-				"Failed to get prefix by VLAN ID",
+				"Failed to get prefix by prefix",
 				httpErr(err, httpResp),
 			)
 			return
@@ -230,7 +241,14 @@ func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		if len(rsp.Results) == 0 {
 			resp.Diagnostics.AddError(
 				"Prefix not found",
-				"No prefix found for VLAN ID "+vlanIDStr,
+				"No prefix found matching "+prefixStr+" in namespace "+namespaceIDStr,
+			)
+			return
+		}
+		if len(rsp.Results) > 1 {
+			resp.Diagnostics.AddError(
+				"Multiple prefixes found",
+				"More than one prefix matched "+prefixStr+" in namespace "+namespaceIDStr+". This violates Nautobot's per-namespace prefix uniqueness constraint.",
 			)
 			return
 		}
@@ -320,7 +338,7 @@ func (d *PrefixDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	data.NaturalSlug = types.StringValue(prefix.NaturalSlug)
 	data.NotesURL = types.StringValue(prefix.NotesUrl)
 
-	tflog.Debug(ctx, "read Prefix", map[string]any{"id": resID, "vlan_id": data.VLANID.ValueString()})
+	tflog.Debug(ctx, "read Prefix", map[string]any{"id": resID, "prefix": data.Prefix.ValueString(), "namespace_id": data.NamespaceID.ValueString()})
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

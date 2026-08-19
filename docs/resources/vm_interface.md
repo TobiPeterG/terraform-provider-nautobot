@@ -13,14 +13,14 @@ This object manages a VM Interface in Nautobot
 ## Example Usage
 
 ```terraform
-// This fetches the VLAN with the given name
-data "nautobot_vlan" "example" {
-  name = "My VLAN Name"
+data "nautobot_namespace" "global" {
+  name = "Global"
 }
 
-// So we can get the first prefix belonging to it
+// Fetch a prefix by its exact CIDR and namespace
 data "nautobot_prefix" "example" {
-  vlan_id = data.nautobot_vlan.example.id
+  prefix       = "10.151.0.0/16"
+  namespace_id = data.nautobot_namespace.global.id
 }
 
 // And finally get the first available IP address from that prefix
