@@ -146,7 +146,7 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 	statusRef := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 		String: stringPtr(statusID),
 	}
-	status := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	status := nb.BulkWritableCableRequestStatus{
 		Id: statusRef,
 	}
 
@@ -263,7 +263,7 @@ func (r *AvailableIPAddressResource) Update(ctx context.Context, req resource.Up
 		statusRef := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(statusID),
 		}
-		status := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		status := nb.BulkWritableCableRequestStatus{
 			Id: statusRef,
 		}
 		patch.Status = &status

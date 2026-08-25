@@ -188,13 +188,13 @@ func (r *VirtualMachineResource) Create(ctx context.Context, req resource.Create
 	var vm nb.VirtualMachineRequest
 	vm.Name = plan.Name.ValueString()
 
-	vm.Cluster = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	vm.Cluster = nb.BulkWritableCableRequestStatus{
 		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(plan.ClusterID.ValueString()),
 		},
 	}
 
-	vm.Status = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	vm.Status = nb.BulkWritableCableRequestStatus{
 		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(statusID),
 		},
@@ -241,12 +241,12 @@ func (r *VirtualMachineResource) Create(ctx context.Context, req resource.Create
 		var tagIDs []string
 		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
 		if !resp.Diagnostics.HasError() && len(tagIDs) > 0 {
-			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 			for _, t := range tagIDs {
 				if t == "" {
 					continue
 				}
-				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				tags = append(tags, nb.BulkWritableCableRequestStatus{
 					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 						String: stringPtr(t),
 					},
@@ -327,7 +327,7 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 
 	if !plan.ClusterID.Equal(state.ClusterID) {
 		v := plan.ClusterID.ValueString()
-		patch.Cluster = &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		patch.Cluster = &nb.BulkWritableCableRequestStatus{
 			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 				String: &v,
 			},
@@ -340,7 +340,7 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
 		}
-		patch.Status = &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		patch.Status = &nb.BulkWritableCableRequestStatus{
 			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 				String: stringPtr(statusID),
 			},
@@ -394,12 +394,12 @@ func (r *VirtualMachineResource) Update(ctx context.Context, req resource.Update
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 		for _, t := range tagIDs {
 			if t == "" {
 				continue
 			}
-			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			tags = append(tags, nb.BulkWritableCableRequestStatus{
 				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 					String: stringPtr(t),
 				},

@@ -209,7 +209,7 @@ func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, r
 	vlan.Name = plan.Name.ValueString()
 	vlan.Vid = int32(plan.Vid.ValueInt64())
 
-	vlan.Status = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	vlan.Status = nb.BulkWritableCableRequestStatus{
 		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(statusID),
 		},
@@ -236,12 +236,12 @@ func (r *VLANResource) Create(ctx context.Context, req resource.CreateRequest, r
 		var tagIDs []string
 		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
 		if !resp.Diagnostics.HasError() && len(tagIDs) > 0 {
-			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 			for _, t := range tagIDs {
 				if t == "" {
 					continue
 				}
-				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				tags = append(tags, nb.BulkWritableCableRequestStatus{
 					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 						String: stringPtr(t),
 					},
@@ -336,7 +336,7 @@ func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, r
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
 		}
-		patch.Status = &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		patch.Status = &nb.BulkWritableCableRequestStatus{
 			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 				String: stringPtr(statusID),
 			},
@@ -361,12 +361,12 @@ func (r *VLANResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 		for _, t := range tagIDs {
 			if t == "" {
 				continue
 			}
-			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			tags = append(tags, nb.BulkWritableCableRequestStatus{
 				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 					String: stringPtr(t),
 				},

@@ -148,7 +148,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	clusterTypeRef := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 		String: stringPtr(plan.ClusterTypeID.ValueString()),
 	}
-	body.ClusterType = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	body.ClusterType = nb.BulkWritableCableRequestStatus{
 		Id: clusterTypeRef,
 	}
 
@@ -175,12 +175,12 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 		if len(tagIDs) > 0 {
-			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 			for _, t := range tagIDs {
 				if t == "" {
 					continue
 				}
-				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				tags = append(tags, nb.BulkWritableCableRequestStatus{
 					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 						String: stringPtr(t),
 					},
@@ -273,7 +273,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		clusterTypeRef := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(v),
 		}
-		ct := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		ct := nb.BulkWritableCableRequestStatus{
 			Id: clusterTypeRef,
 		}
 		patch.ClusterType = &ct
@@ -297,12 +297,12 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 		for _, t := range tagIDs {
 			if t == "" {
 				continue
 			}
-			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			tags = append(tags, nb.BulkWritableCableRequestStatus{
 				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 					String: stringPtr(t),
 				},

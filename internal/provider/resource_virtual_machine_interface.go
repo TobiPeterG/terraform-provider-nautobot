@@ -223,13 +223,13 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 	var body nb.WritableVMInterfaceRequest
 	body.Name = plan.Name.ValueString()
 
-	body.Status = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	body.Status = nb.BulkWritableCableRequestStatus{
 		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(statusID),
 		},
 	}
 
-	body.VirtualMachine = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	body.VirtualMachine = nb.BulkWritableCableRequestStatus{
 		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 			String: stringPtr(plan.VirtualMachineID.ValueString()),
 		},
@@ -275,12 +275,12 @@ func (r *VMInterfaceResource) Create(ctx context.Context, req resource.CreateReq
 			return
 		}
 		if len(tagIDs) > 0 {
-			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 			for _, t := range tagIDs {
 				if t == "" {
 					continue
 				}
-				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				tags = append(tags, nb.BulkWritableCableRequestStatus{
 					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 						String: stringPtr(t),
 					},
@@ -425,7 +425,7 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 			resp.Diagnostics.AddError("failed to get status id", err.Error())
 			return
 		}
-		statusRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		statusRef := nb.BulkWritableCableRequestStatus{
 			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 				String: stringPtr(statusID),
 			},
@@ -435,7 +435,7 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 
 	if !plan.VirtualMachineID.Equal(state.VirtualMachineID) {
 		vmid := plan.VirtualMachineID.ValueString()
-		vmRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		vmRef := nb.BulkWritableCableRequestStatus{
 			Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 				String: stringPtr(vmid),
 			},
@@ -463,12 +463,12 @@ func (r *VMInterfaceResource) Update(ctx context.Context, req resource.UpdateReq
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		tags := make([]nb.BulkWritableCableRequestStatus, 0, len(tagIDs))
 		for _, t := range tagIDs {
 			if t == "" {
 				continue
 			}
-			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			tags = append(tags, nb.BulkWritableCableRequestStatus{
 				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 					String: stringPtr(t),
 				},
@@ -675,7 +675,7 @@ func (r *VMInterfaceResource) assignIPAddressToVMInterface(ctx context.Context, 
 	ipID := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
 		String: &ipAddressID,
 	}
-	ipRef := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+	ipRef := nb.BulkWritableCableRequestStatus{
 		Id: ipID,
 	}
 
