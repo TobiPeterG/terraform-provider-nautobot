@@ -4,7 +4,7 @@ TESTARGS ?=
 PROVIDER_HOST ?= github.com
 NAMESPACE ?= nautobot
 NAME ?= nautobot
-VERSION ?= 3.1.0
+VERSION ?= 3.2.0
 BINARY := terraform-provider-$(NAME)
 OS_ARCH := $(shell go env GOOS)_$(shell go env GOARCH)
 PLUGIN_DIR := $(HOME)/.terraform.d/plugins/$(PROVIDER_HOST)/$(NAMESPACE)/$(NAME)/$(VERSION)/$(OS_ARCH)
@@ -21,7 +21,7 @@ COMPOSE_CI = $(COMPOSE_LOCAL) -f "$(COMPOSE_CI_FILE)"
 NAUTOBOT_TEST_URL ?= http://localhost:8080
 NAUTOBOT_TEST_TOKEN ?= 0123456789abcdef0123456789abcdef01234567
 
-NAUTOBOT_VER ?= 3.1.8
+NAUTOBOT_VER ?= 3.2.3
 PYTHON_VER ?= 3.12
 GO_VERSION ?= $(shell awk '/^toolchain go/ {v=$$2; sub(/^go/, "", v)} /^go / {g=$$2} END {print v ? v : g}' go.mod)
 

@@ -175,22 +175,22 @@ func (r *VMInterfaceResource) Configure(_ context.Context, req resource.Configur
 	r.client = req.ProviderData.(*APIClient)
 }
 
-func vmInterfaceModeFromString(v string) (*nb.PatchedWritableInterfaceRequestMode, error) {
+func vmInterfaceModeFromString(v string) (*nb.IEEE8021QMode1, error) {
 	s := strings.ToLower(strings.TrimSpace(v))
 	if s == "" {
-		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_EMPTY
+		mode := nb.IEEE8021QMODE1_EMPTY
 		return &mode, nil
 	}
 
 	switch s {
 	case "access":
-		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_ACCESS
+		mode := nb.IEEE8021QMODE1_ACCESS
 		return &mode, nil
 	case "tagged":
-		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_TAGGED
+		mode := nb.IEEE8021QMODE1_TAGGED
 		return &mode, nil
 	case "tagged-all", "tagged_all", "tagged all":
-		mode := nb.PATCHEDWRITABLEINTERFACEREQUESTMODE_TAGGED_ALL
+		mode := nb.IEEE8021QMODE1_TAGGED_ALL
 		return &mode, nil
 	default:
 		return nil, fmt.Errorf("unsupported mode %q (valid values: access, tagged, tagged-all)", v)

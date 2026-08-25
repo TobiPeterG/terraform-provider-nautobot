@@ -15,7 +15,7 @@ description: |-
 terraform {
   required_providers {
     nautobot = {
-      version = "3.1.0"
+      version = "3.2.0"
       source  = "registry.terraform.io/nautobot/nautobot"
     }
   }
