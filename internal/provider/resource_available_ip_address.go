@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	nb "github.com/nautobot/go-nautobot/v3"
 )
@@ -28,12 +30,13 @@ type AvailableIPAddressResource struct {
 }
 
 type availableIPModel struct {
-	ID        types.String `tfsdk:"id"`
-	PrefixID  types.String `tfsdk:"prefix_id"`
-	Address   types.String `tfsdk:"address"`
-	IPVersion types.Int64  `tfsdk:"ip_version"`
-	DNSName   types.String `tfsdk:"dns_name"`
-	Status    types.String `tfsdk:"status"`
+	ID               types.String `tfsdk:"id"`
+	PrefixID         types.String `tfsdk:"prefix_id"`
+	IPAddressRangeID types.String `tfsdk:"ip_address_range_id"`
+	Address          types.String `tfsdk:"address"`
+	IPVersion        types.Int64  `tfsdk:"ip_version"`
+	DNSName          types.String `tfsdk:"dns_name"`
+	Status           types.String `tfsdk:"status"`
 }
 
 func NewAvailableIPAddressResource() resource.Resource {
@@ -57,12 +60,21 @@ func (r *AvailableIPAddressResource) Schema(_ context.Context, _ resource.Schema
 			},
 
 			"prefix_id": rschema.StringAttribute{
-				Required:    true,
-				Description: "ID of the prefix to allocate the IP address from.",
+				Optional:    true,
+				Computed:    true,
+				Description: "ID of the prefix to allocate from. Exactly one of prefix_id or ip_address_range_id must be set.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Validators: []validator.String{stringvalidator.ExactlyOneOf(path.MatchRoot("prefix_id"), path.MatchRoot("ip_address_range_id"))},
+			},
+			"ip_address_range_id": rschema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "ID of the non-exclusive IP address range to allocate from. Exactly one allocation source must be set.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace(), stringplanmodifier.UseStateForUnknown()},
+				Validators:    []validator.String{stringvalidator.ExactlyOneOf(path.MatchRoot("prefix_id"), path.MatchRoot("ip_address_range_id"))},
 			},
 
 			"address": rschema.StringAttribute{
@@ -136,6 +148,11 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	c := r.client.Client
+	prefixID, rangeStart, rangeEnd, err := resolveAvailableIPSource(ctx, c, plan.PrefixID.ValueString(), plan.IPAddressRangeID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("invalid available IP allocation source", err.Error())
+		return
+	}
 
 	statusID, err := getStatusID(ctx, c, plan.Status.ValueString())
 	if err != nil {
@@ -165,10 +182,11 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 	var httpResp *http.Response
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		alloc, httpResp, err = c.IpamAPI.
-			IpamPrefixesAvailableIpsCreate(ctx, plan.PrefixID.ValueString()).
-			IPAllocationRequest(body).
-			Execute()
+		allocationRequest := c.IpamAPI.IpamPrefixesAvailableIpsCreate(ctx, prefixID).IPAllocationRequest(body)
+		if rangeStart != "" {
+			allocationRequest = allocationRequest.RangeStart(nb.StringAsIpamPrefixesAvailableIpsListRangeEndParameter(&rangeStart)).RangeEnd(nb.StringAsIpamPrefixesAvailableIpsListRangeEndParameter(&rangeEnd))
+		}
+		alloc, httpResp, err = allocationRequest.Execute()
 		if err == nil {
 			break
 		}
@@ -203,7 +221,7 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	model, found, diags := r.readModel(ctx, *alloc[0].Id, plan.PrefixID.ValueString())
+	model, found, diags := r.readModel(ctx, *alloc[0].Id, prefixID, plan.IPAddressRangeID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -228,7 +246,7 @@ func (r *AvailableIPAddressResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	model, found, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
+	model, found, diags := r.readModel(ctx, id, state.PrefixID.ValueString(), state.IPAddressRangeID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -288,7 +306,7 @@ func (r *AvailableIPAddressResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	model, found, diags := r.readModel(ctx, id, state.PrefixID.ValueString())
+	model, found, diags := r.readModel(ctx, id, state.PrefixID.ValueString(), state.IPAddressRangeID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -320,7 +338,7 @@ func (r *AvailableIPAddressResource) ImportState(ctx context.Context, req resour
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, prefixID string) (availableIPModel, bool, diag.Diagnostics) {
+func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, prefixID string, rangeID string) (availableIPModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	ip, httpResp, err := r.client.Client.IpamAPI.
@@ -345,6 +363,7 @@ func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, p
 	var m availableIPModel
 	m.ID = types.StringValue(id)
 	m.PrefixID = types.StringValue(prefixID)
+	m.IPAddressRangeID = types.StringValue(rangeID)
 
 	m.Address = types.StringValue(ip.Address)
 	m.IPVersion = types.Int64Value(int64(ip.IpVersion))

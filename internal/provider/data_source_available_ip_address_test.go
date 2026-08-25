@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -152,4 +153,28 @@ func TestAccAvailableIPAddressDataSource_parallelAndRefreshWhileAllocating(t *te
 			},
 		},
 	})
+}
+
+func TestAccAvailableIPAddressDataSource_fromIPRange(t *testing.T) {
+	t.Parallel()
+	seed := testAccSeedForTest(t)
+	cidr := testAccPrefixCIDR(seed, 27)
+	start, end := testAccIPRangeBounds(cidr)
+	expectedAddress := start + cidr[strings.LastIndex(cidr, "/"):]
+	config := testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_prefix" "p" {
+  prefix = %q
+  status = %q
+}
+resource "nautobot_ip_address_range" "r" {
+  start_address = %q
+  end_address   = %q
+  status        = %q
+  is_exclusive  = false
+}
+data "nautobot_available_ip_address" "test" {
+  ip_address_range_id = nautobot_ip_address_range.r.id
+}
+`, cidr, testStatus, start, end, testStatus)
+	resource.Test(t, resource.TestCase{PreCheck: func() { testAccPreCheck(t) }, ProtoV6ProviderFactories: testAccProtoV6ProviderFactories, Steps: []resource.TestStep{{Config: config, Check: resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttrPair(availableIPDataSourceName, "ip_address_range_id", "nautobot_ip_address_range.r", "id"), resource.TestCheckResourceAttrPair(availableIPDataSourceName, "prefix_id", "nautobot_prefix.p", "id"), resource.TestCheckResourceAttr(availableIPDataSourceName, "address", expectedAddress))}, {Config: testAccProviderConfig()}}})
 }

@@ -30,6 +30,12 @@ resource "nautobot_available_ip_address" "example" {
   dns_name  = "test-vm.test.com"
 }
 
+# An IP may alternatively be allocated from a non-exclusive IP address range.
+resource "nautobot_available_ip_address" "from_range" {
+  ip_address_range_id = "00000000-0000-0000-0000-000000000000"
+  status              = "Active"
+}
+
 output "resource_available_ip_address" {
   value = nautobot_available_ip_address.example
 }
@@ -40,12 +46,13 @@ output "resource_available_ip_address" {
 
 ### Required
 
-- `prefix_id` (String) ID of the prefix to allocate the IP address from.
 - `status` (String) Status (by name) of the allocated IP address.
 
 ### Optional
 
 - `dns_name` (String) DNS name associated with the IP address.
+- `ip_address_range_id` (String) ID of the non-exclusive IP address range to allocate from. Exactly one allocation source must be set.
+- `prefix_id` (String) ID of the prefix to allocate from. Exactly one of prefix_id or ip_address_range_id must be set.
 
 ### Read-Only
 

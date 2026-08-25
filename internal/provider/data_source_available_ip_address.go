@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
 var (
@@ -20,9 +24,10 @@ type AvailableIPAddressDataSource struct {
 }
 
 type AvailableIPAddressDataSourceModel struct {
-	PrefixID  types.String `tfsdk:"prefix_id"`
-	IPVersion types.Int64  `tfsdk:"ip_version"`
-	Address   types.String `tfsdk:"address"`
+	PrefixID         types.String `tfsdk:"prefix_id"`
+	IPAddressRangeID types.String `tfsdk:"ip_address_range_id"`
+	IPVersion        types.Int64  `tfsdk:"ip_version"`
+	Address          types.String `tfsdk:"address"`
 }
 
 func NewAvailableIPAddressDataSource() datasource.DataSource {
@@ -38,8 +43,16 @@ func (d *AvailableIPAddressDataSource) Schema(_ context.Context, _ datasource.Sc
 		Description: "This data source retrieves an available IP address from a given prefix in Nautobot.",
 		Attributes: map[string]dsschema.Attribute{
 			"prefix_id": dsschema.StringAttribute{
-				Description: "The ID of the prefix from which to retrieve an available IP.",
-				Required:    true,
+				Description: "The ID of the prefix from which to retrieve an available IP. Exactly one source must be set.",
+				Optional:    true,
+				Computed:    true,
+				Validators:  []validator.String{stringvalidator.ExactlyOneOf(path.MatchRoot("prefix_id"), path.MatchRoot("ip_address_range_id"))},
+			},
+			"ip_address_range_id": dsschema.StringAttribute{
+				Description: "The ID of the non-exclusive IP address range from which to retrieve an available IP. Exactly one source must be set.",
+				Optional:    true,
+				Computed:    true,
+				Validators:  []validator.String{stringvalidator.ExactlyOneOf(path.MatchRoot("prefix_id"), path.MatchRoot("ip_address_range_id"))},
 			},
 			"ip_version": dsschema.Int64Attribute{
 				Description: "The version of the IP address (4 or 6).",
@@ -78,18 +91,20 @@ func (d *AvailableIPAddressDataSource) Read(ctx context.Context, req datasource.
 
 	c := d.client.Client
 
-	prefixID := data.PrefixID.ValueString()
-	if prefixID == "" {
+	prefixID, rangeStart, rangeEnd, err := resolveAvailableIPSource(ctx, c, data.PrefixID.ValueString(), data.IPAddressRangeID.ValueString())
+	if err != nil {
 		resp.Diagnostics.AddError(
-			"Missing prefix_id",
-			"`prefix_id` must be provided.",
+			"Invalid available IP source",
+			err.Error(),
 		)
 		return
 	}
 
-	availableIPs, httpResp, err := c.IpamAPI.
-		IpamPrefixesAvailableIpsList(ctx, prefixID).
-		Execute()
+	availableRequest := c.IpamAPI.IpamPrefixesAvailableIpsList(ctx, prefixID)
+	if rangeStart != "" {
+		availableRequest = availableRequest.RangeStart(nb.StringAsIpamPrefixesAvailableIpsListRangeEndParameter(&rangeStart)).RangeEnd(nb.StringAsIpamPrefixesAvailableIpsListRangeEndParameter(&rangeEnd))
+	}
+	availableIPs, httpResp, err := availableRequest.Execute()
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to retrieve available IPs",
@@ -110,6 +125,7 @@ func (d *AvailableIPAddressDataSource) Read(ctx context.Context, req datasource.
 
 	data.IPVersion = types.Int64Value(int64(availableIP.IpVersion))
 	data.Address = types.StringValue(availableIP.Address)
+	data.PrefixID = types.StringValue(prefixID)
 
 	tflog.Debug(ctx, "read available IP", map[string]any{
 		"prefix_id":  prefixID,

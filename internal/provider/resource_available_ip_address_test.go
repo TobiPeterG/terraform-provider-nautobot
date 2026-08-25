@@ -2,6 +2,8 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -285,4 +287,79 @@ func TestAccAvailableIPAddressResource_parallelAllocations(t *testing.T) {
 			},
 		},
 	})
+}
+
+func testAccAvailableIPAddressFromRangeConfig(seed int64, cidr, start, end string) string {
+	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_prefix" "p" {
+  prefix = %q
+  status = %q
+}
+resource "nautobot_ip_address_range" "r" {
+  start_address = %q
+  end_address   = %q
+  status        = %q
+  is_exclusive  = false
+}
+resource "nautobot_available_ip_address" "test" {
+  ip_address_range_id = nautobot_ip_address_range.r.id
+  status              = %q
+}
+`, cidr, testStatus, start, end, testStatus, testStatus)
+}
+
+func TestAccAvailableIPAddressResource_fromIPRange(t *testing.T) {
+	t.Parallel()
+	seed := testAccSeedForTest(t)
+	cidr := testAccPrefixCIDR(seed, 26)
+	start, end := testAccIPRangeBounds(cidr)
+	expectedAddress := start + cidr[strings.LastIndex(cidr, "/"):]
+	addr := "nautobot_available_ip_address.test"
+	resource.Test(t, resource.TestCase{PreCheck: func() { testAccPreCheck(t) }, ProtoV6ProviderFactories: testAccProtoV6ProviderFactories, Steps: []resource.TestStep{
+		{Config: testAccAvailableIPAddressFromRangeConfig(seed, cidr, start, end), Check: resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttrPair(addr, "ip_address_range_id", "nautobot_ip_address_range.r", "id"), resource.TestCheckResourceAttrPair(addr, "prefix_id", "nautobot_prefix.p", "id"), resource.TestCheckResourceAttr(addr, "address", expectedAddress), resource.TestCheckResourceAttr(addr, "status", testStatus))},
+		{Config: testAccProviderConfig()},
+	}})
+}
+
+func testAccAvailableIPAddressFullRangeConfig(cidr, address string, allocateSecond bool) string {
+	second := ""
+	if allocateSecond {
+		second = fmt.Sprintf(`
+resource "nautobot_available_ip_address" "second" {
+  ip_address_range_id = nautobot_ip_address_range.r.id
+  status              = %q
+  depends_on          = [nautobot_available_ip_address.first]
+}
+`, testStatus)
+	}
+	return testAccProviderConfig() + fmt.Sprintf(`
+resource "nautobot_prefix" "p" {
+  prefix = %q
+  status = %q
+}
+resource "nautobot_ip_address_range" "r" {
+  start_address = %q
+  end_address   = %q
+  status        = %q
+  is_exclusive  = false
+}
+resource "nautobot_available_ip_address" "first" {
+  ip_address_range_id = nautobot_ip_address_range.r.id
+  status              = %q
+}
+%s
+`, cidr, testStatus, address, address, testStatus, testStatus, second)
+}
+
+func TestAccAvailableIPAddressResource_fullIPRangeDoesNotFallBackToPrefix(t *testing.T) {
+	t.Parallel()
+	seed := testAccSeedForTest(t)
+	cidr := testAccPrefixCIDR(seed, 28)
+	start, _ := testAccIPRangeBounds(cidr)
+	expectedAddress := start + cidr[strings.LastIndex(cidr, "/"):]
+	resource.Test(t, resource.TestCase{PreCheck: func() { testAccPreCheck(t) }, ProtoV6ProviderFactories: testAccProtoV6ProviderFactories, Steps: []resource.TestStep{
+		{Config: testAccAvailableIPAddressFullRangeConfig(cidr, start, false), Check: resource.TestCheckResourceAttr("nautobot_available_ip_address.first", "address", expectedAddress)},
+		{Config: testAccAvailableIPAddressFullRangeConfig(cidr, start, true), ExpectError: regexp.MustCompile(`(?i)(failed to allocate IP address|no IP address id returned|no available IP)`)},
+		{Config: testAccProviderConfig()},
+	}})
 }

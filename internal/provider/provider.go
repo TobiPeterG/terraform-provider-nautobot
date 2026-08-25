@@ -158,6 +158,7 @@ func (a *authRT) RoundTrip(r *http.Request) (*http.Response, error) {
 func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewAvailableIPAddressResource,
+		NewIPAddressRangeResource,
 		NewClusterResource,
 		NewClusterTypeResource,
 		NewManufacturerResource,
@@ -175,6 +176,8 @@ func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resour
 func (p *nautobotProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewAvailableIPAddressDataSource,
+		NewIPAddressRangeDataSource,
+		NewIPAddressRangesDataSource,
 		NewClusterDataSource,
 		NewClustersDataSource,
 		NewClusterTypeDataSource,
