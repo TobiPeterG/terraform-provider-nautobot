@@ -88,8 +88,6 @@ jobs:
         env:
           TF_TOOL: ${{ matrix.tool }}
           TF_VERSION: ${{ matrix.version }}
-          NAUTOBOT_VER: "3.0.2"
-          PYTHON_VER: "3.12"
         run: make testacc-docker
 
       - name: Dump Nautobot logs on failure
