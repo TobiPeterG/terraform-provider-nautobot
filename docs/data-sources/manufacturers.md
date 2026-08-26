@@ -3,12 +3,12 @@
 page_title: "nautobot_manufacturers Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Manufacturer data source in the Terraform Nautobot provider. Retrieves information about all manufacturers.
+  Retrieves information about all manufacturers in Nautobot.
 ---
 
 # nautobot_manufacturers (Data Source)
 
-Manufacturer data source in the Terraform Nautobot provider. Retrieves information about all manufacturers.
+Retrieves information about all manufacturers in Nautobot.
 
 ## Example Usage
 
@@ -38,12 +38,12 @@ output "data_manufacturers_example" {
 
 Read-Only:
 
-- `created` (String) Manufacturer's creation date (RFC3339).
-- `description` (String) Manufacturer's description.
-- `display` (String) Human friendly display value for the Manufacturer.
-- `id` (String) Manufacturer's UUID.
-- `last_updated` (String) Manufacturer's last update date (RFC3339).
-- `name` (String) Manufacturer's name.
-- `natural_slug` (String) Natural slug for the Manufacturer.
-- `notes_url` (String) Notes URL for the Manufacturer.
-- `url` (String) URL of the Manufacturer.
+- `created` (String) Manufacturer creation date (RFC3339).
+- `description` (String) Manufacturer description.
+- `display` (String) Human-friendly display value for the manufacturer.
+- `id` (String) Manufacturer UUID.
+- `last_updated` (String) Manufacturer last update date (RFC3339).
+- `name` (String) Manufacturer name.
+- `natural_slug` (String) Natural slug for the manufacturer.
+- `notes_url` (String) Notes URL for the manufacturer.
+- `url` (String) API URL of the manufacturer.

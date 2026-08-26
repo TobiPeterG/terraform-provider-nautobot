@@ -28,26 +28,26 @@ data "nautobot_ip_address_ranges" "all" {}
 
 Read-Only:
 
-- `count_as_utilized` (Boolean) Whether the entire range counts as utilized in its parent prefix.
-- `created` (String) Creation timestamp (RFC3339).
-- `description` (String) Description of the range.
-- `display` (String) Human-friendly display value.
+- `count_as_utilized` (Boolean) Whether the range counts as fully utilized.
+- `created` (String) Creation timestamp.
+- `description` (String) Range description.
+- `display` (String) Display value.
 - `end_address` (String) Last address in the range (inclusive).
-- `end_host` (String) Normalized last host address.
+- `end_host` (String) Normalized last host.
 - `id` (String) IP address range UUID.
-- `ip_version` (Number) IP version (4 or 6).
-- `is_exclusive` (Boolean) Whether individual IP addresses are prohibited inside the range.
-- `last_updated` (String) Last update timestamp (RFC3339).
-- `name` (String) Human-readable name of the range.
+- `ip_version` (Number) IP version.
+- `is_exclusive` (Boolean) Whether individual addresses are prohibited.
+- `last_updated` (String) Last update timestamp.
+- `name` (String) Range name.
 - `namespace_id` (String) Namespace UUID inherited from the parent prefix.
-- `natural_slug` (String) Natural slug of the range.
-- `notes_url` (String) Notes API URL of the range.
+- `natural_slug` (String) Natural slug.
+- `notes_url` (String) Notes API URL.
 - `parent_id` (String) UUID of the containing parent prefix.
-- `role_id` (String) Role UUID associated with the range.
-- `size` (Number) Number of addresses in the range.
+- `role_id` (String) Associated role UUID.
+- `size` (Number) Number of addresses.
 - `start_address` (String) First address in the range (inclusive).
-- `start_host` (String) Normalized first host address.
-- `status` (String) Status of the range (name).
-- `tags_ids` (List of String) Tag UUIDs associated with the range.
-- `tenant_id` (String) Tenant UUID associated with the range.
-- `url` (String) API URL of the range.
+- `start_host` (String) Normalized first host.
+- `status` (String) Range status name.
+- `tags_ids` (List of String) Associated tag UUIDs.
+- `tenant_id` (String) Associated tenant UUID.
+- `url` (String) API URL.

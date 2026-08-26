@@ -3,12 +3,12 @@
 page_title: "nautobot_vlan Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a VLAN in Nautobot
+  Manages a VLAN in Nautobot.
 ---
 
 # nautobot_vlan (Resource)
 
-This object manages a VLAN in Nautobot
+Manages a VLAN in Nautobot.
 
 ## Example Usage
 
@@ -44,12 +44,7 @@ output "resource_vlan" {
 ### Read-Only
 
 - `created` (String) Creation timestamp (RFC3339).
-- `display` (String) Human-friendly display value.
 - `id` (String) VLAN UUID.
-- `natural_slug` (String) Natural slug for the VLAN.
-- `notes_url` (String) Notes URL for the VLAN.
-- `prefix_count` (Number) Number of prefixes associated with this VLAN.
-- `url` (String) API URL of the VLAN.
 
 ## Import
 

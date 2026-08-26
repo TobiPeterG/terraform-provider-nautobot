@@ -3,12 +3,12 @@
 page_title: "nautobot_ip_address_range Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Retrieves an IP address range by ID or by exact boundaries and namespace.
+  Retrieves an IP address range in Nautobot by ID or by exact boundaries and namespace.
 ---
 
 # nautobot_ip_address_range (Data Source)
 
-Retrieves an IP address range by ID or by exact boundaries and namespace.
+Retrieves an IP address range in Nautobot by ID or by exact boundaries and namespace.
 
 ## Example Usage
 

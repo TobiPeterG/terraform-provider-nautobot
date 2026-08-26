@@ -3,12 +3,12 @@
 page_title: "nautobot_prefix Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Retrieves information about a Prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.
+  Retrieves information about a prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.
 ---
 
 # nautobot_prefix (Data Source)
 
-Retrieves information about a Prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.
+Retrieves information about a prefix in Nautobot by either its ID or the combination of an exact prefix and namespace UUID.
 
 ## Example Usage
 
@@ -42,15 +42,15 @@ output "data_prefix_parent" {
 
 ### Optional
 
-- `id` (String) The UUID of the prefix. Provide either `id`, or both `prefix` and `namespace_id`.
-- `namespace_id` (String) The namespace UUID associated with the prefix. Must be provided together with `prefix` when `id` is not used.
-- `prefix` (String) The exact prefix in CIDR notation. Must be provided together with `namespace_id` when `id` is not used.
+- `id` (String) The UUID of the prefix.
+- `namespace_id` (String) The ID of the namespace associated with the prefix.
+- `prefix` (String) The prefix in CIDR notation.
 
 ### Read-Only
 
 - `broadcast` (String) IPv4 or IPv6 broadcast address.
 - `created` (String) The creation date of the prefix (RFC3339).
-- `date_allocated` (String) Date this prefix was allocated/reserved (RFC3339).
+- `date_allocated` (String) Date this prefix was allocated or reserved (RFC3339).
 - `description` (String) Description of the prefix.
 - `display` (String) Human-friendly display value.
 - `ip_version` (Number) IP version of the prefix (4 or 6).
@@ -66,4 +66,4 @@ output "data_prefix_parent" {
 - `tags_ids` (List of String) The IDs of the tags associated with the prefix.
 - `tenant_id` (String) The ID of the tenant associated with the prefix.
 - `url` (String) API URL of the prefix.
-- `vlan_id` (String) The UUID of the VLAN associated with the prefix.
+- `vlan_id` (String) The UUID of the VLAN the prefix belongs to.

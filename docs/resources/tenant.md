@@ -3,12 +3,12 @@
 page_title: "nautobot_tenant Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a tenant in Nautobot.
+  Manages a tenant in Nautobot.
 ---
 
 # nautobot_tenant (Resource)
 
-This object manages a tenant in Nautobot.
+Manages a tenant in Nautobot.
 
 ## Example Usage
 
@@ -39,11 +39,7 @@ output "resource_tenant" {
 ### Read-Only
 
 - `created` (String) Tenant's creation date (RFC3339).
-- `display` (String) Tenant's display name.
 - `id` (String) Tenant's UUID.
-- `natural_slug` (String) Natural slug for the tenant.
-- `notes_url` (String) Notes URL for the tenant.
-- `url` (String) Tenant's URL.
 
 ## Import
 

@@ -3,12 +3,12 @@
 page_title: "nautobot_cluster_type Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a cluster type in Nautobot.
+  Manages a cluster type in Nautobot.
 ---
 
 # nautobot_cluster_type (Resource)
 
-This object manages a cluster type in Nautobot.
+Manages a cluster type in Nautobot.
 
 ## Example Usage
 
@@ -37,11 +37,7 @@ output "resource_cluster_type_new" {
 ### Read-Only
 
 - `created` (String) Creation date of the cluster type.
-- `display` (String) Human-friendly display value for the cluster type.
 - `id` (String) Cluster type's UUID.
-- `natural_slug` (String) Natural slug for the cluster type.
-- `notes_url` (String) Notes URL for the cluster type.
-- `url` (String) URL of the cluster type.
 
 ## Import
 
