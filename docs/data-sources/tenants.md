@@ -37,9 +37,9 @@ Read-Only:
 - `created` (String) Tenant's creation date (RFC3339).
 - `description` (String) Tenant's description.
 - `display` (String) Human friendly display value for the tenant.
-- `id` (String) Tenant's UUID.
+- `id` (String) Tenant's UUID. Provide either `id` or `name`.
 - `last_updated` (String) Tenant's last update date (RFC3339).
-- `name` (String) Tenant's name.
+- `name` (String) The name of the tenant to retrieve.
 - `natural_slug` (String) Natural slug for the tenant.
 - `notes_url` (String) Notes URL for the tenant.
 - `tenant_group_id` (String) UUID of the tenant group this tenant belongs to.

@@ -3,12 +3,12 @@
 page_title: "nautobot_tenant_group Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a tenant group in Nautobot.
+  Manages a tenant group in Nautobot.
 ---
 
 # nautobot_tenant_group (Resource)
 
-This object manages a tenant group in Nautobot.
+Manages a tenant group in Nautobot.
 
 ## Example Usage
 
@@ -38,11 +38,7 @@ output "resource_tenant_group" {
 ### Read-Only
 
 - `created` (String) Tenant group's creation date (RFC3339).
-- `display` (String) Tenant group's display name.
 - `id` (String) Tenant group's UUID.
-- `natural_slug` (String) Natural slug for the tenant group.
-- `notes_url` (String) Notes URL for the tenant group.
-- `url` (String) Tenant group's URL.
 
 ## Import
 

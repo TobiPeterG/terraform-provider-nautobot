@@ -9,10 +9,10 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.31.0
 	github.com/hashicorp/terraform-plugin-log v0.11.0
 	github.com/hashicorp/terraform-plugin-testing v1.16.0
-	github.com/nautobot/go-nautobot/v3 v3.2.0-beta
+	github.com/nautobot/go-nautobot/v3 v3.2.1-beta
 )
 
-replace github.com/nautobot/go-nautobot/v3 => github.com/TobiPeterG/go-nautobot/v3 v3.2.0-beta
+replace github.com/nautobot/go-nautobot/v3 => github.com/TobiPeterG/go-nautobot/v3 v3.2.1-beta
 
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect

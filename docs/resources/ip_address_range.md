@@ -3,12 +3,12 @@
 page_title: "nautobot_ip_address_range Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages an IP address range in Nautobot.
+  Manages an IP address range in Nautobot.
 ---
 
 # nautobot_ip_address_range (Resource)
 
-This object manages an IP address range in Nautobot.
+Manages an IP address range in Nautobot.
 
 ## Example Usage
 
@@ -39,7 +39,8 @@ resource "nautobot_ip_address_range" "dhcp_pool" {
 - `description` (String) Description of the range.
 - `is_exclusive` (Boolean) Whether creation of individual IP addresses inside the range is prohibited.
 - `name` (String) Human-readable name of the range.
-- `namespace_id` (String) Namespace UUID used to resolve the parent prefix.
+- `namespace_id` (String) Namespace UUID used to resolve the parent prefix; provide this and/or parent_id.
+- `parent_id` (String) UUID of the containing parent prefix; provide this and/or namespace_id.
 - `role_id` (String) Role UUID associated with the range.
 - `tags_ids` (List of String) Tag UUIDs associated with the range.
 - `tenant_id` (String) Tenant UUID associated with the range.
@@ -47,16 +48,11 @@ resource "nautobot_ip_address_range" "dhcp_pool" {
 ### Read-Only
 
 - `created` (String) Creation timestamp (RFC3339).
-- `display` (String) Human-friendly display value.
 - `end_host` (String) Normalized last host address.
 - `id` (String) IP address range UUID.
 - `ip_version` (Number) IP version (4 or 6).
-- `natural_slug` (String) Natural slug of the range.
-- `notes_url` (String) Notes API URL of the range.
-- `parent_id` (String) UUID of the containing parent prefix.
 - `size` (Number) Number of addresses in the range.
 - `start_host` (String) Normalized first host address.
-- `url` (String) API URL of the range.
 
 ## Import
 

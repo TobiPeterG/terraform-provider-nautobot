@@ -3,12 +3,12 @@
 page_title: "nautobot_available_ip_address Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This data source retrieves an available IP address from a given prefix in Nautobot.
+  Retrieves the next available IP address from a prefix or non-exclusive IP address range in Nautobot.
 ---
 
 # nautobot_available_ip_address (Data Source)
 
-This data source retrieves an available IP address from a given prefix in Nautobot.
+Retrieves the next available IP address from a prefix or non-exclusive IP address range in Nautobot.
 
 ## Example Usage
 

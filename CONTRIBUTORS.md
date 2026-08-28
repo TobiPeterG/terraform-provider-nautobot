@@ -57,10 +57,21 @@ generated changes before committing them.
   Nautobot or derived by the provider.
 - Decide null, unknown, and empty-value behavior deliberately and cover it with tests. Missing
   nullable timestamps are e.g. represented as Terraform null values.
+- Use the shared optional-attribute schema helpers when omission is deliberately normalized to an
+  empty string, list, or set. A static default already makes the planned value known; do not add
+  `UseStateForUnknown` to the same writable attribute.
+- Use the shared RFC3339 instant type for user-configurable timestamps. It validates values before
+  apply and treats different offsets or fractional-second formatting for the same instant as equal;
+  do not use an empty string as a substitute for a missing timestamp.
 - Do not apply `UseStateForUnknown` to computed values that may change during an update. It is only
   appropriate when the previous value is guaranteed to remain valid.
-- Avoid volatile metadata such as `last_updated` on resources when it adds state noise without
-  affecting resource management. Such metadata is usually more useful on data sources.
+- Keep resource state limited to values that identify or configure the managed object, plus useful
+  immutable metadata such as `created`. Do not add observational values that can change because of
+  related objects or API presentation without changing the managed object itself. This includes
+  aggregate counters such as `device_count`, volatile timestamps such as `last_updated`, and
+  presentation or navigation values
+  such as `display`, `url`, `natural_slug`, and `notes_url`. Expose these values on data sources
+  instead.
 - Keep matching single and list data sources aligned unless their documented semantics differ.
 
 ## Resource behavior
@@ -68,6 +79,8 @@ generated changes before committing them.
 New resources should normally provide create, read, update, delete, and import support.
 
 - Validate that create responses contain a non-empty object ID.
+- Validate refresh responses before dereferencing them, including that the returned object ID is
+  non-empty and matches the requested ID.
 - During refresh, remove the resource from state when Nautobot returns not found.
 - Treat deleting an already-absent object as success.
 - Read the object after create and update so state reflects the API's canonical representation.
@@ -77,6 +90,8 @@ New resources should normally provide create, read, update, delete, and import s
 ## Data-source behavior
 
 - A single-object data source should return a clear diagnostic for no match or malformed API data.
+- Define each single-object selector once with `shared.SelectorSpec`, and use that specification for
+  both configuration and defensive runtime validation.
 - List data sources must follow API pagination until all pages are read.
 - Do not place list items with missing or empty IDs into state; return a diagnostic instead.
 - Keep each list item schema aligned with the corresponding single-object data source.
@@ -86,22 +101,57 @@ New resources should normally provide create, read, update, delete, and import s
 Unit tests must not require a live Nautobot instance. Acceptance tests use the `TestAcc` prefix and
 must generate unique object names so they can run concurrently.
 
+Keep resource and data-source tests beside their implementation in the corresponding object-family
+package. Provider-wide tests remain in `internal/provider`, while reusable acceptance setup and
+state-check helpers belong in `internal/provider/testutil`.
+
 Resource acceptance coverage should be proportional to the resource and normally include:
 
-- Minimal and fully populated configurations.
-- Updates followed by convergence to an empty plan.
+- A minimal configuration that exercises defaults and nullable values.
+- A fully populated configuration covering every writable attribute for which a stable test
+  dependency is available.
+- In-place updates, including clearing optional scalar values and relationships, followed by
+  convergence to an empty plan.
+- Replacement behavior for attributes marked `RequiresReplace`.
 - Import verification.
-- Deletion and already-absent deletion behavior.
-- Setting, replacing, and clearing relationships.
-- External drift detection for managed attributes.
+- Normal destruction and deletion when the remote object is already absent. Prefer a final
+  provider-only configuration so destruction is exercised explicitly.
+- External drift detection and recovery for representative managed attributes.
+- Validation failures and API edge cases specific to the resource.
+- Multiple concurrent instances when uniqueness, allocation, or shared-state behavior could be
+  affected by concurrency.
+
+Not every case applies to every resource. For example, an association resource may not have a
+meaningful "full" configuration distinct from its minimal configuration. Omit inapplicable cases
+deliberately and mention significant omissions or unavailable dependency types in the pull request.
 
 Every ordinary acceptance-test apply step automatically requires an empty follow-up plan unless
 `ExpectNonEmptyPlan` is explicitly set. When testing external drift, keep the initial apply clean:
 capture the object ID in the first step, mutate Nautobot in the next step's `PreConfig`, require a
 non-empty plan, and then verify that a final apply restores the configured values.
 
-List data-source tests should verify pagination, item identity, representative attributes, nullable
-values, and relationships.
+When an update clears a relationship to another resource that the test also manages, keep the
+dependency resource in that update configuration. Remove it in a separate subsequent step, after
+the relationship has been cleared. Otherwise Terraform may update the referring object and delete
+the dependency concurrently, and Nautobot can correctly reject the early deletion with a conflict.
+For example, first apply a VLAN configuration with `vlan_group_id` omitted while retaining the
+`nautobot_vlan_group`, then remove the VLAN group in the following step.
+
+Single-object data-source acceptance tests should normally cover:
+
+- Lookup by ID and by the complete natural key when both selector forms are supported.
+- Minimal/null and fully populated result mapping.
+- A valid selector that matches no objects.
+- Multiple matches where the Nautobot model permits a non-unique selector, verifying that the data
+  source returns an error rather than selecting an arbitrary result.
+- Selector validation errors. These may be framework-level unit tests when no API interaction is
+  needed.
+
+List data-source acceptance tests should create multiple identifiable objects and verify item
+identity, representative attributes, nullable values, and relationships. Pagination mechanics must
+be covered by direct unit tests of the shared pagination helper; an endpoint-specific acceptance
+test should span multiple API pages only when it can do so without creating an excessive number of
+objects.
 
 ## Running acceptance tests
 
