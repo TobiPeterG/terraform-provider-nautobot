@@ -3,12 +3,12 @@
 page_title: "nautobot_cluster Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a cluster in Nautobot
+  Manages a cluster in Nautobot.
 ---
 
 # nautobot_cluster (Resource)
 
-This object manages a cluster in Nautobot
+Manages a cluster in Nautobot.
 
 ## Example Usage
 

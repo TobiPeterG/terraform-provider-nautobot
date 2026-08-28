@@ -3,12 +3,12 @@
 page_title: "nautobot_cluster_types Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Retrieves information about cluster types in Nautobot.
+  Retrieves information about all cluster types in Nautobot.
 ---
 
 # nautobot_cluster_types (Data Source)
 
-Retrieves information about cluster types in Nautobot.
+Retrieves information about all cluster types in Nautobot.
 
 ## Example Usage
 

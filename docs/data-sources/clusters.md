@@ -3,12 +3,12 @@
 page_title: "nautobot_clusters Data Source - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  Retrieves information about clusters in Nautobot.
+  Retrieves information about all clusters in Nautobot.
 ---
 
 # nautobot_clusters (Data Source)
 
-Retrieves information about clusters in Nautobot.
+Retrieves information about all clusters in Nautobot.
 
 ## Example Usage
 
@@ -38,9 +38,15 @@ Read-Only:
 - `cluster_type_id` (String) The ID of the cluster type.
 - `comments` (String) Comments or notes about the cluster.
 - `created` (String) The creation date of the cluster (RFC3339).
+- `device_count` (Number) Number of devices associated with the cluster.
+- `display` (String) Human-friendly display value for the cluster.
 - `id` (String) The UUID of the cluster.
 - `last_updated` (String) The last update date of the cluster (RFC3339).
 - `location_id` (String) The ID of the location associated with the cluster.
 - `name` (String) The name of the cluster.
+- `natural_slug` (String) Natural slug for the cluster.
+- `notes_url` (String) Notes URL for the cluster.
 - `tags_ids` (List of String) The IDs of the tags associated with the cluster.
 - `tenant_id` (String) The ID of the tenant associated with the cluster.
+- `url` (String) API URL of the cluster.
+- `virtual_machine_count` (Number) Number of virtual machines in the cluster.

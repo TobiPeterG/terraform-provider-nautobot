@@ -36,7 +36,7 @@ Read-Only:
 
 - `broadcast` (String) IPv4 or IPv6 broadcast address.
 - `created` (String) The creation date of the prefix (RFC3339).
-- `date_allocated` (String) Date this prefix was allocated/reserved (RFC3339).
+- `date_allocated` (String) Date this prefix was allocated or reserved (RFC3339).
 - `description` (String) Description of the prefix.
 - `display` (String) Human-friendly display value.
 - `id` (String) The UUID of the prefix.

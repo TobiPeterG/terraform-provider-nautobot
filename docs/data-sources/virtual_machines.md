@@ -36,18 +36,22 @@ Read-Only:
 
 - `cluster_id` (String) The ID of the cluster associated with the virtual machine.
 - `comments` (String) Comments or notes about the virtual machine.
-- `created` (String) The creation date of the virtual machine (RFC3339).
+- `created` (String) The creation date (RFC3339).
 - `disk` (Number) The disk size in GB.
+- `display` (String) Human-friendly display value for the virtual machine.
 - `id` (String) The UUID of the virtual machine.
-- `last_updated` (String) The last update date of the virtual machine (RFC3339).
+- `last_updated` (String) The last update date (RFC3339).
 - `memory` (Number) The amount of memory in MB.
 - `name` (String) The name of the virtual machine.
+- `natural_slug` (String) Natural slug for the virtual machine.
+- `notes_url` (String) Notes URL for the virtual machine.
 - `platform_id` (String) The ID of the platform associated with the virtual machine.
 - `primary_ip4_id` (String) The ID of the primary IPv4 address.
 - `primary_ip6_id` (String) The ID of the primary IPv6 address.
 - `role_id` (String) The ID of the role associated with the virtual machine.
-- `software_version_id` (String) The ID of the software version installed on the virtual machine.
+- `software_version_id` (String) The ID of the installed software version.
 - `status` (String) The name of the status of the virtual machine.
-- `tags_ids` (List of String) The IDs of the tags associated with the virtual machine.
-- `tenant_id` (String) The ID of the tenant associated with the virtual machine.
+- `tags_ids` (List of String) The IDs of associated tags.
+- `tenant_id` (String) The tenant ID. For name lookup, omit it to match only VMs without a tenant.
+- `url` (String) API URL of the virtual machine.
 - `vcpus` (Number) The number of virtual CPUs.

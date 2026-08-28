@@ -3,12 +3,12 @@
 page_title: "nautobot_prefix Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a prefix in Nautobot
+  Manages a prefix in Nautobot.
 ---
 
 # nautobot_prefix (Resource)
 
-This object manages a prefix in Nautobot
+Manages a prefix in Nautobot.
 
 ## Example Usage
 
@@ -42,6 +42,7 @@ output "resource_prefix" {
 
 - `date_allocated` (String) Date this prefix was allocated/reserved (RFC3339).
 - `description` (String) Description of the prefix.
+- `namespace_id` (String) Namespace UUID associated with the prefix.
 - `parent_id` (String) Parent prefix UUID.
 - `rir_id` (String) RIR UUID associated with the prefix.
 - `role_id` (String) Role UUID associated with the prefix.
@@ -53,15 +54,10 @@ output "resource_prefix" {
 
 - `broadcast` (String) IPv4 or IPv6 broadcast address.
 - `created` (String) Creation timestamp (RFC3339).
-- `display` (String) Human-friendly display value.
 - `id` (String) Prefix UUID.
 - `ip_version` (Number) IP version (4 or 6).
-- `namespace_id` (String) The ID of the namespace associated with the prefix.
-- `natural_slug` (String) Natural slug for the prefix.
 - `network` (String) IPv4 or IPv6 network address.
-- `notes_url` (String) Notes URL for the prefix.
 - `prefix_length` (Number) Length of the prefix, in bits.
-- `url` (String) API URL of the prefix.
 
 ## Import
 

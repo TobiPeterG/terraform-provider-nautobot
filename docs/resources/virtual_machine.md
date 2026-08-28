@@ -3,12 +3,12 @@
 page_title: "nautobot_virtual_machine Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a virtual machine in Nautobot
+  Manages a virtual machine in Nautobot.
 ---
 
 # nautobot_virtual_machine (Resource)
 
-This object manages a virtual machine in Nautobot
+Manages a virtual machine in Nautobot.
 
 ## Example Usage
 

@@ -3,12 +3,12 @@
 page_title: "nautobot_vm_interface Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages a VM Interface in Nautobot
+  Manages a VM interface in Nautobot.
 ---
 
 # nautobot_vm_interface (Resource)
 
-This object manages a VM Interface in Nautobot
+Manages a VM interface in Nautobot.
 
 ## Example Usage
 

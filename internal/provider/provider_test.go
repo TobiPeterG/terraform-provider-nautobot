@@ -8,13 +8,45 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"nautobot": providerserver.NewProtocol6WithError(New("test")),
+func TestResourcesExcludeObservationalAttributes(t *testing.T) {
+	t.Parallel()
+
+	// These values describe API presentation or related-object aggregates. They
+	// do not configure the managed object and may change independently of it.
+	excluded := []string{
+		"display",
+		"url",
+		"natural_slug",
+		"notes_url",
+		"last_updated",
+		"device_count",
+		"virtual_machine_count",
+		"prefix_count",
+		"vlan_count",
+	}
+
+	provider := &nautobotProvider{}
+	for _, constructor := range provider.Resources(context.Background()) {
+		managedResource := constructor()
+		var metadata resource.MetadataResponse
+		managedResource.Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "nautobot"}, &metadata)
+
+		var schemaResponse resource.SchemaResponse
+		managedResource.Schema(context.Background(), resource.SchemaRequest{}, &schemaResponse)
+		if schemaResponse.Diagnostics.HasError() {
+			t.Fatalf("%s schema returned diagnostics: %v", metadata.TypeName, schemaResponse.Diagnostics)
+		}
+
+		for _, name := range excluded {
+			if _, exists := schemaResponse.Schema.Attributes[name]; exists {
+				t.Errorf("%s resource must not expose observational attribute %q", metadata.TypeName, name)
+			}
+		}
+	}
 }
 
 type blockingRoundTripper struct{}
@@ -37,21 +69,6 @@ func (r *successfulStatusRoundTripper) RoundTrip(req *http.Request) (*http.Respo
 		Body:       io.NopCloser(strings.NewReader(`{"nautobot-version":"3.0.2"}`)),
 		Request:    req,
 	}, nil
-}
-
-func testAccPreCheck(t *testing.T) {
-}
-
-func testAccProviderConfig() string {
-	url := testURL
-	token := testToken
-
-	return `
-provider "nautobot" {
-  url   = "` + url + `/api"
-  token = "` + token + `"
-}
-`
 }
 
 func TestCheckVersionCompatibilityTimeout(t *testing.T) {

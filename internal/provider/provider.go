@@ -13,10 +13,23 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	pSchema "github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	providerschema "github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	availableippkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/available_ip_address"
+	clusterpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/cluster"
+	clustertypepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/cluster_type"
+	graphqlpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/graphql"
+	iprangepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/ip_address_range"
+	manufacturerpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/manufacturer"
+	namespacepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/namespace"
+	prefixpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/prefix"
+	"github.com/nautobot/terraform-provider-nautobot/internal/provider/shared"
+	tenantpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/tenant"
+	tenantgrouppkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/tenant_group"
+	virtualmachinepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/virtual_machine"
+	vlanpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/vlan"
 )
 
 const defaultStatusRequestTimeoutSeconds int64 = 10
@@ -31,11 +44,6 @@ type providerModel struct {
 	StatusRequestTimeout  types.Int64  `tfsdk:"status_request_timeout"`
 }
 
-type APIClient struct {
-	Client *nb.APIClient
-	Token  string
-}
-
 func New(version string) provider.Provider {
 	return &nautobotProvider{version: version}
 }
@@ -46,27 +54,27 @@ func (p *nautobotProvider) Metadata(_ context.Context, _ provider.MetadataReques
 }
 
 func (p *nautobotProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = pSchema.Schema{
-		Attributes: map[string]pSchema.Attribute{
-			"url": pSchema.StringAttribute{
+	resp.Schema = providerschema.Schema{
+		Attributes: map[string]providerschema.Attribute{
+			"url": providerschema.StringAttribute{
 				Required:    true,
 				Description: "Nautobot API URL",
 			},
-			"token": pSchema.StringAttribute{
+			"token": providerschema.StringAttribute{
 				Required:    true,
 				Sensitive:   true,
 				Description: "Admin API token",
 			},
-			"skip_version_check": pSchema.BoolAttribute{
+			"skip_version_check": providerschema.BoolAttribute{
 				Optional:    true,
 				Description: "Skip Nautobot version compatibility check. Use with caution.",
 			},
-			"insecure_skip_tls_verify": pSchema.BoolAttribute{
+			"insecure_skip_tls_verify": providerschema.BoolAttribute{
 				Optional: true,
 				Description: "Disable TLS certificate verification when connecting to Nautobot. " +
 					"Use only for testing.",
 			},
-			"status_request_timeout": pSchema.Int64Attribute{
+			"status_request_timeout": providerschema.Int64Attribute{
 				Optional:    true,
 				Description: "Timeout in seconds for the Nautobot status request used to verify version compatibility. Defaults to 10 seconds. Set to 0 to disable the timeout.",
 				Validators: []validator.Int64{
@@ -121,7 +129,7 @@ func (p *nautobotProvider) Configure(ctx context.Context, req provider.Configure
 	}
 
 	httpClient := &http.Client{
-		Transport: &authRT{
+		Transport: &authRoundTripper{
 			base:  baseTransport,
 			token: cfg.Token.ValueString(),
 		},
@@ -140,60 +148,68 @@ func (p *nautobotProvider) Configure(ctx context.Context, req provider.Configure
 		}
 	}
 
-	client := &APIClient{Client: api, Token: cfg.Token.ValueString()}
+	client := &shared.APIClient{Client: api}
 	resp.ResourceData = client
 	resp.DataSourceData = client
 }
 
-type authRT struct {
+type authRoundTripper struct {
 	base  http.RoundTripper
 	token string
 }
 
-func (a *authRT) RoundTrip(r *http.Request) (*http.Response, error) {
-	r.Header.Set("Authorization", "Token "+a.token)
-	return a.base.RoundTrip(r)
+func (a *authRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	clonedRequest := request.Clone(request.Context())
+	clonedRequest.Header = request.Header.Clone()
+	clonedRequest.Header.Set("Authorization", "Token "+a.token)
+	return a.base.RoundTrip(clonedRequest)
 }
 
 func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewAvailableIPAddressResource,
-		NewClusterResource,
-		NewClusterTypeResource,
-		NewManufacturerResource,
-		NewNamespaceResource,
-		NewPrefixResource,
-		NewVirtualMachineResource,
-		NewVMInterfaceResource,
-		NewVMPrimaryIPResource,
-		NewTenantResource,
-		NewTenantGroupResource,
-		NewVLANResource,
+		availableippkg.NewAvailableIPAddressResource,
+		clusterpkg.NewClusterResource,
+		clustertypepkg.NewClusterTypeResource,
+		iprangepkg.NewIPAddressRangeResource,
+		manufacturerpkg.NewManufacturerResource,
+		namespacepkg.NewNamespaceResource,
+		prefixpkg.NewPrefixResource,
+		tenantpkg.NewTenantResource,
+		tenantgrouppkg.NewTenantGroupResource,
+		virtualmachinepkg.NewVirtualMachineResource,
+		virtualmachinepkg.NewVMInterfaceResource,
+		virtualmachinepkg.NewVMPrimaryIPResource,
+		vlanpkg.NewVLANGroupResource,
+		vlanpkg.NewVLANResource,
 	}
 }
 
 func (p *nautobotProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewAvailableIPAddressDataSource,
-		NewClusterDataSource,
-		NewClustersDataSource,
-		NewClusterTypeDataSource,
-		NewClusterTypesDataSource,
-		NewGraphQLDataSource,
-		NewManufacturerDataSource,
-		NewManufacturersDataSource,
-		NewNamespaceDataSource,
-		NewNamespacesDataSource,
-		NewPrefixDataSource,
-		NewPrefixesDataSource,
-		NewVirtualMachineDataSource,
-		NewVirtualMachinesDataSource,
-		NewTenantDataSource,
-		NewTenantsDataSource,
-		NewTenantGroupDataSource,
-		NewTenantGroupsDataSource,
-		NewVLANDataSource,
-		NewVLANsDataSource,
+		availableippkg.NewAvailableIPAddressDataSource,
+		clusterpkg.NewClusterDataSource,
+		clusterpkg.NewClustersDataSource,
+		clustertypepkg.NewClusterTypeDataSource,
+		clustertypepkg.NewClusterTypesDataSource,
+		graphqlpkg.NewGraphQLDataSource,
+		iprangepkg.NewIPAddressRangeDataSource,
+		iprangepkg.NewIPAddressRangesDataSource,
+		manufacturerpkg.NewManufacturerDataSource,
+		manufacturerpkg.NewManufacturersDataSource,
+		namespacepkg.NewNamespaceDataSource,
+		namespacepkg.NewNamespacesDataSource,
+		prefixpkg.NewPrefixDataSource,
+		prefixpkg.NewPrefixesDataSource,
+		tenantpkg.NewTenantDataSource,
+		tenantpkg.NewTenantsDataSource,
+		tenantgrouppkg.NewTenantGroupDataSource,
+		tenantgrouppkg.NewTenantGroupsDataSource,
+		virtualmachinepkg.NewVirtualMachineDataSource,
+		virtualmachinepkg.NewVirtualMachinesDataSource,
+		vlanpkg.NewVLANGroupDataSource,
+		vlanpkg.NewVLANGroupsDataSource,
+		vlanpkg.NewVLANDataSource,
+		vlanpkg.NewVLANsDataSource,
 	}
 }
 

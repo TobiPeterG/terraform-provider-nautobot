@@ -3,12 +3,12 @@
 page_title: "nautobot_namespace Resource - terraform-provider-nautobot"
 subcategory: ""
 description: |-
-  This object manages an IPAM namespace in Nautobot.
+  Manages an IPAM namespace in Nautobot.
 ---
 
 # nautobot_namespace (Resource)
 
-This object manages an IPAM namespace in Nautobot.
+Manages an IPAM namespace in Nautobot.
 
 ## Example Usage
 
@@ -39,11 +39,7 @@ output "namespace_id" {
 ### Read-Only
 
 - `created` (String) Namespace creation date (RFC3339).
-- `display` (String) Human-friendly display value for the namespace.
 - `id` (String) Namespace UUID.
-- `natural_slug` (String) Natural slug for the namespace.
-- `notes_url` (String) Notes URL for the namespace.
-- `url` (String) API URL of the namespace.
 
 ## Import
 
