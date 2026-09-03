@@ -52,7 +52,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.16.0"
+          terraform_version: "1.16.1"
           terraform_wrapper: false
 
       - name: Generate
@@ -73,7 +73,7 @@ jobs:
       matrix:
         include:
           - tool: terraform
-            version: "1.16.0"
+            version: "1.16.1"
           - tool: opentofu
             version: "1.12.6"
 
