@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG TF_VERSION=1.16.1
+ARG TF_VERSION=1.16.2
 ARG GO_VERSION=1.25.8
 
 FROM hashicorp/terraform:${TF_VERSION} AS terraform
