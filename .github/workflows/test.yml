@@ -73,7 +73,7 @@ jobs:
       matrix:
         include:
           - tool: terraform
-            version: "1.16.4"
+            version: "1.16.5"
           - tool: opentofu
             version: "1.13.1"
 
