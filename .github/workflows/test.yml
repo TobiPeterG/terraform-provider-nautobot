@@ -75,7 +75,7 @@ jobs:
           - tool: terraform
             version: "1.17.2"
           - tool: opentofu
-            version: "1.13.8"
+            version: "1.13.9"
 
     steps:
       - name: Check out code
