@@ -7,12 +7,16 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	nb "github.com/nautobot/go-nautobot/v3"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestNewSecurityProviderNautobotToken(t *testing.T) {
@@ -267,5 +271,175 @@ func TestAccGetStatusIDAndGetStatusName(t *testing.T) {
 	}
 	if name != testStatus {
 		t.Fatalf("getStatusName: expected %q, got %q", testStatus, name)
+	}
+}
+
+func TestMakeAndNullableNATInside(t *testing.T) {
+	var unset nb.NullableNATInside
+	if got := nullableNATInsideStr(unset).ValueString(); got != "" {
+		t.Fatalf("expected unset NATInside to become empty, got %q", got)
+	}
+
+	emptyJSON, err := json.Marshal(makeNATInside(""))
+	if err != nil {
+		t.Fatalf("marshal empty NATInside: %v", err)
+	}
+	if string(emptyJSON) != "null" {
+		t.Fatalf("expected empty NATInside to marshal as null, got %s", emptyJSON)
+	}
+
+	want := "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+	populated := makeNATInside(want)
+	if got := nullableNATInsideStr(populated).ValueString(); got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestMakeAndNullableIPParent(t *testing.T) {
+	var unset nb.NullableBulkWritableIPAddressRequestParent
+	if got := nullableIPParentStr(unset).ValueString(); got != "" {
+		t.Fatalf("expected unset parent to become empty, got %q", got)
+	}
+
+	emptyJSON, err := json.Marshal(makeIPParent(""))
+	if err != nil {
+		t.Fatalf("marshal empty parent: %v", err)
+	}
+	if string(emptyJSON) != "null" {
+		t.Fatalf("expected empty parent to marshal as null, got %s", emptyJSON)
+	}
+
+	want := "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+	populated := makeIPParent(want)
+	if got := nullableIPParentStr(populated).ValueString(); got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestMakeIPNamespace(t *testing.T) {
+	if got := makeIPNamespace(""); got != nil {
+		t.Fatalf("expected nil namespace for empty id, got %+v", got)
+	}
+	want := "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+	ns := makeIPNamespace(want)
+	if ns == nil || ns.Id == nil || ns.Id.String == nil || *ns.Id.String != want {
+		t.Fatalf("expected namespace id %q, got %+v", want, ns)
+	}
+}
+
+func TestIPAddressTypeHelpers(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want nb.IPAddressTypeChoices
+	}{
+		{"", nb.IPADDRESSTYPECHOICES_HOST},
+		{"host", nb.IPADDRESSTYPECHOICES_HOST},
+		{"DHCP", nb.IPADDRESSTYPECHOICES_DHCP},
+		{"slaac", nb.IPADDRESSTYPECHOICES_SLAAC},
+	} {
+		got, err := ipAddressTypeFromString(tc.in)
+		if err != nil {
+			t.Fatalf("ipAddressTypeFromString(%q): unexpected err: %v", tc.in, err)
+		}
+		if got == nil || *got != tc.want {
+			t.Fatalf("ipAddressTypeFromString(%q): want %q, got %v", tc.in, tc.want, got)
+		}
+		if s := ipAddressTypeToString(got).ValueString(); s != string(tc.want) {
+			t.Fatalf("ipAddressTypeToString(%q): want %q, got %q", tc.want, tc.want, s)
+		}
+	}
+
+	if _, err := ipAddressTypeFromString("invalid"); err == nil {
+		t.Fatalf("expected error for invalid IP address type")
+	}
+
+	if got := ipAddressTypeToString(nil).ValueString(); got != string(nb.IPADDRESSTYPECHOICES_HOST) {
+		t.Fatalf("expected nil IP type to default to host, got %q", got)
+	}
+}
+
+func TestExpandAndFlattenTagRefs(t *testing.T) {
+	ctx := context.Background()
+	id1 := "11111111-1111-1111-1111-111111111111"
+	id2 := "22222222-2222-2222-2222-222222222222"
+
+	// Pass tags in reverse order to verify deterministic expansion and order-insensitive Set equality.
+	in := types.SetValueMust(types.StringType, []attr.Value{
+		types.StringValue(id2),
+		types.StringValue(""),
+		types.StringValue(id1),
+	})
+
+	refs, diags := expandTagRefs(ctx, in)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if len(refs) != 2 || *refs[0].Id.String != id1 || *refs[1].Id.String != id2 {
+		t.Fatalf("expected sorted [%s %s], got %+v", id1, id2, refs)
+	}
+
+	// API returning reverse order must still Equal the original Set (without empty element).
+	reversedAPI := []nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{refs[1], refs[0]}
+	out := flattenTagIDs(reversedAPI)
+	expectedSet := types.SetValueMust(types.StringType, []attr.Value{
+		types.StringValue(id1),
+		types.StringValue(id2),
+	})
+	if !out.Equal(expectedSet) {
+		t.Fatalf("expected flattened tag set %v to equal %v", out, expectedSet)
+	}
+
+	emptyRefs, diags := expandTagRefs(ctx, types.SetValueMust(types.StringType, []attr.Value{}))
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if emptyRefs == nil || len(emptyRefs) != 0 {
+		t.Fatalf("expected non-nil empty tag slice, got %#v", emptyRefs)
+	}
+}
+
+func TestResolveIPAddressNamespaceIDAndPrefix404(t *testing.T) {
+	ctx := context.Background()
+	wantNS := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	parentID := "11111111-2222-3333-4444-555555555555"
+
+	// 1) Fast path: namespace embedded in parent.AdditionalProperties (depth=1)
+	ipWithProps := &nb.IPAddress{}
+	ipWithProps.Parent.Set(&nb.BulkWritableIPAddressRequestParent{
+		Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{String: stringPtr(parentID)},
+		AdditionalProperties: map[string]any{
+			"namespace": map[string]any{"id": wantNS},
+		},
+	})
+
+	got, err := resolveIPAddressNamespaceID(ctx, nil, ipWithProps)
+	if err != nil {
+		t.Fatalf("unexpected error from AdditionalProperties fast path: %v", err)
+	}
+	if got != wantNS {
+		t.Fatalf("expected %q, got %q", wantNS, got)
+	}
+
+	// 2) Missing parent returns error instead of empty string
+	if _, err := resolveIPAddressNamespaceID(ctx, nil, &nb.IPAddress{}); err == nil {
+		t.Fatalf("expected error when IP address has no parent")
+	}
+
+	// 3) 404 on parent prefix returns error instead of silent empty string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail":"Not found."}`))
+	}))
+	defer srv.Close()
+
+	cfg := nb.NewConfiguration()
+	cfg.Servers = nb.ServerConfigurations{{URL: srv.URL}}
+	client := nb.NewAPIClient(cfg)
+
+	ipWithoutProps := &nb.IPAddress{}
+	ipWithoutProps.Parent = makeIPParent(parentID)
+
+	if _, err := resolveIPAddressNamespaceID(ctx, client, ipWithoutProps); err == nil {
+		t.Fatalf("expected error when parent prefix returns 404")
 	}
 }

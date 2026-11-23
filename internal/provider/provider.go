@@ -160,6 +160,7 @@ func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resour
 		NewAvailableIPAddressResource,
 		NewClusterResource,
 		NewClusterTypeResource,
+		NewIPAddressResource,
 		NewManufacturerResource,
 		NewNamespaceResource,
 		NewPrefixResource,

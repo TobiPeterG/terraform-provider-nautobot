@@ -8,11 +8,13 @@ data "nautobot_prefix" "example" {
   namespace_id = data.nautobot_namespace.global.id
 }
 
-// And finally get the first available IP address from that prefix
+// Allocate the next available IP address from that prefix
 resource "nautobot_available_ip_address" "example" {
-  prefix_id = data.nautobot_prefix.example.id
-  status    = "Active"
-  dns_name  = "test-vm.test.com"
+  prefix_id   = data.nautobot_prefix.example.id
+  status      = "Active"
+  type        = "host"
+  dns_name    = "test-vm.test.com"
+  description = "Allocated for test VM"
 }
 
 output "resource_available_ip_address" {

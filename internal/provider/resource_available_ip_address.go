@@ -2,18 +2,26 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	nb "github.com/nautobot/go-nautobot/v3"
 )
@@ -28,12 +36,25 @@ type AvailableIPAddressResource struct {
 }
 
 type availableIPModel struct {
-	ID        types.String `tfsdk:"id"`
-	PrefixID  types.String `tfsdk:"prefix_id"`
-	Address   types.String `tfsdk:"address"`
-	IPVersion types.Int64  `tfsdk:"ip_version"`
-	DNSName   types.String `tfsdk:"dns_name"`
-	Status    types.String `tfsdk:"status"`
+	ID          types.String `tfsdk:"id"`
+	PrefixID    types.String `tfsdk:"prefix_id"`
+	Address     types.String `tfsdk:"address"`
+	Host        types.String `tfsdk:"host"`
+	MaskLength  types.Int64  `tfsdk:"mask_length"`
+	IPVersion   types.Int64  `tfsdk:"ip_version"`
+	Type        types.String `tfsdk:"type"`
+	DNSName     types.String `tfsdk:"dns_name"`
+	Description types.String `tfsdk:"description"`
+	Status      types.String `tfsdk:"status"`
+	RoleID      types.String `tfsdk:"role_id"`
+	TenantID    types.String `tfsdk:"tenant_id"`
+	NatInsideID types.String `tfsdk:"nat_inside_id"`
+	TagsIDs     types.Set    `tfsdk:"tags_ids"`
+	Created     types.String `tfsdk:"created"`
+	Display     types.String `tfsdk:"display"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	NotesURL    types.String `tfsdk:"notes_url"`
 }
 
 func NewAvailableIPAddressResource() resource.Resource {
@@ -59,23 +80,35 @@ func (r *AvailableIPAddressResource) Schema(_ context.Context, _ resource.Schema
 			"prefix_id": rschema.StringAttribute{
 				Required:    true,
 				Description: "ID of the prefix to allocate the IP address from.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 
-			"address": rschema.StringAttribute{
-				Computed:    true,
-				Description: "Allocated IP address in CIDR notation.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+			"status": rschema.StringAttribute{
+				Required:    true,
+				Description: "Status (by name) of the allocated IP address.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 
-			"ip_version": rschema.Int64Attribute{
+			"type": rschema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
-				Description: "IP version of the allocated IP address (4 or 6).",
+				Default:     stringdefault.StaticString(string(nb.IPADDRESSTYPECHOICES_HOST)),
+				Description: "Type of the IP address (`host`, `dhcp`, or `slaac`).",
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						string(nb.IPADDRESSTYPECHOICES_HOST),
+						string(nb.IPADDRESSTYPECHOICES_DHCP),
+						string(nb.IPADDRESSTYPECHOICES_SLAAC),
+					),
+				},
 			},
 
 			"dns_name": rschema.StringAttribute{
@@ -88,9 +121,124 @@ func (r *AvailableIPAddressResource) Schema(_ context.Context, _ resource.Schema
 				},
 			},
 
-			"status": rschema.StringAttribute{
-				Required:    true,
-				Description: "Status (by name) of the allocated IP address.",
+			"description": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Description of the IP address.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"role_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Role UUID associated with the IP address.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"tenant_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Tenant UUID associated with the IP address.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"nat_inside_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "UUID of the inside IP address for which this address is the NAT outside IP.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"tags_ids": rschema.SetAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Tags (UUIDs) associated with the IP address.",
+				ElementType: types.StringType,
+				Default:     setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+				PlanModifiers: []planmodifier.Set{
+					setplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"address": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Allocated IP address in CIDR notation.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"host": rschema.StringAttribute{
+				Computed:    true,
+				Description: "IPv4 or IPv6 host address without mask.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"mask_length": rschema.Int64Attribute{
+				Computed:    true,
+				Description: "Length of the network mask, in bits.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"ip_version": rschema.Int64Attribute{
+				Computed:    true,
+				Description: "IP version of the allocated IP address (4 or 6).",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"created": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Creation timestamp (RFC3339).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"display": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Human-friendly display value.",
+			},
+
+			"url": rschema.StringAttribute{
+				Computed:    true,
+				Description: "API URL of the IP address.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"natural_slug": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Natural slug for the IP address.",
+			},
+
+			"notes_url": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Notes URL for the IP address.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -150,14 +298,45 @@ func (r *AvailableIPAddressResource) Create(ctx context.Context, req resource.Cr
 		Id: statusRef,
 	}
 
-	body := []nb.IPAllocationRequest{
-		{
-			Status: status,
-		},
+	allocReq := nb.IPAllocationRequest{
+		Status: status,
+	}
+
+	if v := plan.Type.ValueString(); v != "" {
+		ipType, err := ipAddressTypeFromString(v)
+		if err != nil {
+			resp.Diagnostics.AddError("invalid IP address type", err.Error())
+			return
+		}
+		allocReq.Type = ipType
 	}
 	if v := plan.DNSName.ValueString(); v != "" {
-		body[0].DnsName = &v
+		allocReq.DnsName = &v
 	}
+	if v := plan.Description.ValueString(); v != "" {
+		allocReq.Description = &v
+	}
+	if v := plan.RoleID.ValueString(); v != "" {
+		allocReq.Role = makeFKUser(v)
+	}
+	if v := plan.TenantID.ValueString(); v != "" {
+		allocReq.Tenant = makeFKUser(v)
+	}
+	if v := plan.NatInsideID.ValueString(); v != "" {
+		allocReq.NatInside = makeNATInside(v)
+	}
+	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
+		tags, diags := expandTagRefs(ctx, plan.TagsIDs)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if len(tags) > 0 {
+			allocReq.Tags = tags
+		}
+	}
+
+	body := []nb.IPAllocationRequest{allocReq}
 
 	// Remove when https://github.com/nautobot/nautobot/issues/8297 is fixed.
 	const maxRetries = 10
@@ -269,14 +448,44 @@ func (r *AvailableIPAddressResource) Update(ctx context.Context, req resource.Up
 		patch.Status = &status
 	}
 
-	if !plan.DNSName.Equal(state.DNSName) {
-		if plan.DNSName.ValueString() == "" {
-			empty := ""
-			patch.DnsName = &empty
-		} else {
-			v := plan.DNSName.ValueString()
-			patch.DnsName = &v
+	if !plan.Type.Equal(state.Type) {
+		ipType, err := ipAddressTypeFromString(plan.Type.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("invalid IP address type", err.Error())
+			return
 		}
+		patch.Type = ipType
+	}
+
+	if !plan.DNSName.Equal(state.DNSName) {
+		v := plan.DNSName.ValueString()
+		patch.DnsName = &v
+	}
+
+	if !plan.Description.Equal(state.Description) {
+		v := plan.Description.ValueString()
+		patch.Description = &v
+	}
+
+	if !plan.RoleID.Equal(state.RoleID) {
+		patch.Role = makeFKUser(plan.RoleID.ValueString())
+	}
+
+	if !plan.TenantID.Equal(state.TenantID) {
+		patch.Tenant = makeFKUser(plan.TenantID.ValueString())
+	}
+
+	if !plan.NatInsideID.Equal(state.NatInsideID) {
+		patch.NatInside = makeNATInside(plan.NatInsideID.ValueString())
+	}
+
+	if !plan.TagsIDs.Equal(state.TagsIDs) {
+		tags, diags := expandTagRefs(ctx, plan.TagsIDs)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		patch.Tags = tags
 	}
 
 	_, httpResp, err := c.IpamAPI.
@@ -317,6 +526,22 @@ func (r *AvailableIPAddressResource) Delete(ctx context.Context, req resource.De
 }
 
 func (r *AvailableIPAddressResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	rawID := strings.TrimSpace(req.ID)
+	if strings.Contains(rawID, ",") {
+		parts := strings.SplitN(rawID, ",", 2)
+		prefixID := strings.TrimSpace(parts[0])
+		ipID := strings.TrimSpace(parts[1])
+		if prefixID == "" || ipID == "" {
+			resp.Diagnostics.AddError(
+				"Invalid import ID",
+				"Expected `<ip_id>` or `<prefix_id>,<ip_id>` with non-empty UUIDs.",
+			)
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("prefix_id"), prefixID)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), ipID)...)
+		return
+	}
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
@@ -334,12 +559,25 @@ func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, p
 		return availableIPModel{}, false, diags
 	}
 
-	// Try to derive prefixID from parent if not provided
-	if prefixID == "" && ip.Parent.IsSet() {
-		parent := ip.Parent.Get()
-		if parent != nil && parent.Id != nil && parent.Id.String != nil && *parent.Id.String != "" {
-			prefixID = *parent.Id.String
+	if prefixID == "" {
+		prefixID = nullableIPParentStr(ip.Parent).ValueString()
+	}
+	if prefixID == "" {
+		diags.AddError(
+			"failed to determine prefix_id for IP address",
+			fmt.Sprintf("IP address %s has no parent prefix in Nautobot; import using `<prefix_id>,<ip_id>` if needed", id),
+		)
+		return availableIPModel{}, false, diags
+	}
+
+	statusName := ""
+	if ip.Status.Id != nil && ip.Status.Id.String != nil && *ip.Status.Id.String != "" {
+		n, err := getStatusName(ctx, r.client.Client, *ip.Status.Id.String)
+		if err != nil {
+			diags.AddError("failed to read IP address status", err.Error())
+			return availableIPModel{}, false, diags
 		}
+		statusName = n
 	}
 
 	var m availableIPModel
@@ -347,21 +585,24 @@ func (r *AvailableIPAddressResource) readModel(ctx context.Context, id string, p
 	m.PrefixID = types.StringValue(prefixID)
 
 	m.Address = types.StringValue(ip.Address)
+	m.Host = types.StringValue(ip.Host)
+	m.MaskLength = types.Int64Value(int64(ip.MaskLength))
 	m.IPVersion = types.Int64Value(int64(ip.IpVersion))
-
-	if ip.DnsName != nil {
-		m.DNSName = types.StringValue(*ip.DnsName)
-	} else {
-		m.DNSName = types.StringValue("")
-	}
-
-	statusName := ""
-	if ip.Status.Id != nil && ip.Status.Id.String != nil && *ip.Status.Id.String != "" {
-		if n, err := getStatusName(ctx, r.client.Client, *ip.Status.Id.String); err == nil {
-			statusName = n
-		}
-	}
+	m.Type = ipAddressTypeToString(ip.Type)
+	m.DNSName = types.StringValue(derefStr(ip.DnsName))
+	m.Description = types.StringValue(derefStr(ip.Description))
 	m.Status = types.StringValue(statusName)
+
+	m.RoleID = nullableFKStr(ip.Role)
+	m.TenantID = nullableFKStr(ip.Tenant)
+	m.NatInsideID = nullableNATInsideStr(ip.NatInside)
+	m.TagsIDs = flattenTagIDs(ip.Tags)
+
+	m.Created = nullableTimeStr(ip.Created)
+	m.Display = types.StringValue(ip.Display)
+	m.URL = types.StringValue(ip.Url)
+	m.NaturalSlug = types.StringValue(ip.NaturalSlug)
+	m.NotesURL = types.StringValue(ip.NotesUrl)
 
 	return m, true, diags
 }

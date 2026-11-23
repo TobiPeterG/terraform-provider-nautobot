@@ -23,11 +23,13 @@ data "nautobot_prefix" "example" {
   namespace_id = data.nautobot_namespace.global.id
 }
 
-// And finally get the first available IP address from that prefix
+// Allocate the next available IP address from that prefix
 resource "nautobot_available_ip_address" "example" {
-  prefix_id = data.nautobot_prefix.example.id
-  status    = "Active"
-  dns_name  = "test-vm.test.com"
+  prefix_id   = data.nautobot_prefix.example.id
+  status      = "Active"
+  type        = "host"
+  dns_name    = "test-vm.test.com"
+  description = "Allocated for test VM"
 }
 
 output "resource_available_ip_address" {
@@ -45,13 +47,26 @@ output "resource_available_ip_address" {
 
 ### Optional
 
+- `description` (String) Description of the IP address.
 - `dns_name` (String) DNS name associated with the IP address.
+- `nat_inside_id` (String) UUID of the inside IP address for which this address is the NAT outside IP.
+- `role_id` (String) Role UUID associated with the IP address.
+- `tags_ids` (Set of String) Tags (UUIDs) associated with the IP address.
+- `tenant_id` (String) Tenant UUID associated with the IP address.
+- `type` (String) Type of the IP address (`host`, `dhcp`, or `slaac`).
 
 ### Read-Only
 
 - `address` (String) Allocated IP address in CIDR notation.
+- `created` (String) Creation timestamp (RFC3339).
+- `display` (String) Human-friendly display value.
+- `host` (String) IPv4 or IPv6 host address without mask.
 - `id` (String) Allocated IP address UUID.
 - `ip_version` (Number) IP version of the allocated IP address (4 or 6).
+- `mask_length` (Number) Length of the network mask, in bits.
+- `natural_slug` (String) Natural slug for the IP address.
+- `notes_url` (String) Notes URL for the IP address.
+- `url` (String) API URL of the IP address.
 
 ## Import
 
@@ -61,6 +76,9 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 #!/usr/bin/env sh
-# Available IPs can be imported using an IPs unique ID, e.g. '748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7'
-terraform import nautobot_available_ip_address "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+# Available IPs can be imported using the IP UUID (prefix_id is derived from parent), e.g.:
+terraform import nautobot_available_ip_address.example "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+
+# Or explicitly specifying `<prefix_id>,<ip_id>`:
+terraform import nautobot_available_ip_address.example "11111111-2222-3333-4444-555555555555,748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
 ```

@@ -555,3 +555,134 @@ func testCheckTenantGroupInListHasAttrs(dsAddr, tgName string, want map[string]s
 	requiredComputed := []string{"id", "display", "url", "natural_slug", "created", "last_updated", "notes_url"}
 	return testCheckListItemHasAttrs(dsAddr, "tenant_groups", "name", tgName, want, requiredComputed)
 }
+
+func testAccCreateTag(t *testing.T, name string, contentTypes []string) string {
+	t.Helper()
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
+
+	client := testAccAPIClient()
+	ctx := context.Background()
+
+	tag, resp, err := client.ExtrasAPI.
+		ExtrasTagsCreate(ctx).
+		TagRequest(nb.TagRequest{
+			Name:         name,
+			ContentTypes: contentTypes,
+		}).
+		Execute()
+	if err != nil {
+		t.Fatalf("create tag %s: %s", name, httpErr(err, resp))
+	}
+	if tag.Id == nil || *tag.Id == "" {
+		t.Fatalf("create tag %s: returned empty ID", name)
+	}
+	id := *tag.Id
+
+	t.Cleanup(func() {
+		r, delErr := client.ExtrasAPI.ExtrasTagsDestroy(context.Background(), id).Execute()
+		if delErr != nil && !isNotFoundResponse(r) {
+			t.Logf("cleanup tag %s (%s): %s", name, id, httpErr(delErr, r))
+		}
+	})
+
+	return id
+}
+
+func testAccCreateRole(t *testing.T, name string, contentTypes []string) string {
+	t.Helper()
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
+
+	client := testAccAPIClient()
+	ctx := context.Background()
+
+	role, resp, err := client.ExtrasAPI.
+		ExtrasRolesCreate(ctx).
+		RoleRequest(nb.RoleRequest{
+			Name:         name,
+			ContentTypes: contentTypes,
+		}).
+		Execute()
+	if err != nil {
+		t.Fatalf("create role %s: %s", name, httpErr(err, resp))
+	}
+	if role.Id == nil || *role.Id == "" {
+		t.Fatalf("create role %s: returned empty ID", name)
+	}
+	id := *role.Id
+
+	t.Cleanup(func() {
+		r, delErr := client.ExtrasAPI.ExtrasRolesDestroy(context.Background(), id).Execute()
+		if delErr != nil && !isNotFoundResponse(r) {
+			t.Logf("cleanup role %s (%s): %s", name, id, httpErr(delErr, r))
+		}
+	})
+
+	return id
+}
+
+func testAccCreateNamespaceAndPrefix(t *testing.T, nsName, cidr string) (string, string) {
+	t.Helper()
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
+
+	client := testAccAPIClient()
+	ctx := context.Background()
+
+	ns, resp, err := client.IpamAPI.
+		IpamNamespacesCreate(ctx).
+		NamespaceRequest(nb.NamespaceRequest{Name: nsName}).
+		Execute()
+	if err != nil {
+		t.Fatalf("create namespace %s: %s", nsName, httpErr(err, resp))
+	}
+	if ns.Id == nil || *ns.Id == "" {
+		t.Fatalf("create namespace %s: returned empty ID", nsName)
+	}
+	nsID := *ns.Id
+
+	t.Cleanup(func() {
+		r, delErr := client.IpamAPI.IpamNamespacesDestroy(context.Background(), nsID).Execute()
+		if delErr != nil && !isNotFoundResponse(r) {
+			t.Logf("cleanup namespace %s (%s): %s", nsName, nsID, httpErr(delErr, r))
+		}
+	})
+
+	statusID, err := getStatusID(ctx, client, testStatus)
+	if err != nil {
+		t.Fatalf("getStatusID(%s): %v", testStatus, err)
+	}
+
+	pfx, resp, err := client.IpamAPI.
+		IpamPrefixesCreate(ctx).
+		WritablePrefixRequest(nb.WritablePrefixRequest{
+			Prefix: cidr,
+			Status: nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{String: stringPtr(statusID)},
+			},
+			Namespace: &nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{String: stringPtr(nsID)},
+			},
+		}).
+		Execute()
+	if err != nil {
+		t.Fatalf("create prefix %s in namespace %s: %s", cidr, nsName, httpErr(err, resp))
+	}
+	if pfx.Id == nil || *pfx.Id == "" {
+		t.Fatalf("create prefix %s: returned empty ID", cidr)
+	}
+	pfxID := *pfx.Id
+
+	t.Cleanup(func() {
+		r, delErr := client.IpamAPI.IpamPrefixesDestroy(context.Background(), pfxID).Execute()
+		if delErr != nil && !isNotFoundResponse(r) {
+			t.Logf("cleanup prefix %s (%s): %s", cidr, pfxID, httpErr(delErr, r))
+		}
+	})
+
+	return nsID, pfxID
+}
