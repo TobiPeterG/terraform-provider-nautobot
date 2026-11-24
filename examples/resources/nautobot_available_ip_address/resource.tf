@@ -8,11 +8,18 @@ data "nautobot_prefix" "example" {
   namespace_id = data.nautobot_namespace.global.id
 }
 
-// And finally get the first available IP address from that prefix
+// Allocate the first available IP address from that prefix
 resource "nautobot_available_ip_address" "example" {
-  prefix_id = data.nautobot_prefix.example.id
-  status    = "Active"
-  dns_name  = "test-vm.test.com"
+  prefix_id   = data.nautobot_prefix.example.id
+  status      = "Active"
+  type        = "host"
+  dns_name    = "test-vm.test.com"
+  description = "Allocated for test VM"
+  # Optional metadata fields:
+  # role_id       = "00000000-0000-0000-0000-000000000001"
+  # tenant_id     = "00000000-0000-0000-0000-000000000002"
+  # nat_inside_id = "00000000-0000-0000-0000-000000000003"
+  # tags_ids      = ["00000000-0000-0000-0000-000000000004"]
 }
 
 # An IP may alternatively be allocated from a non-exclusive IP address range.

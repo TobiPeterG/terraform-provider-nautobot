@@ -23,11 +23,18 @@ data "nautobot_prefix" "example" {
   namespace_id = data.nautobot_namespace.global.id
 }
 
-// And finally get the first available IP address from that prefix
+// Allocate the first available IP address from that prefix
 resource "nautobot_available_ip_address" "example" {
-  prefix_id = data.nautobot_prefix.example.id
-  status    = "Active"
-  dns_name  = "test-vm.test.com"
+  prefix_id   = data.nautobot_prefix.example.id
+  status      = "Active"
+  type        = "host"
+  dns_name    = "test-vm.test.com"
+  description = "Allocated for test VM"
+  # Optional metadata fields:
+  # role_id       = "00000000-0000-0000-0000-000000000001"
+  # tenant_id     = "00000000-0000-0000-0000-000000000002"
+  # nat_inside_id = "00000000-0000-0000-0000-000000000003"
+  # tags_ids      = ["00000000-0000-0000-0000-000000000004"]
 }
 
 # An IP may alternatively be allocated from a non-exclusive IP address range.
@@ -50,15 +57,24 @@ output "resource_available_ip_address" {
 
 ### Optional
 
+- `description` (String) Description of the IP address.
 - `dns_name` (String) DNS name associated with the IP address.
 - `ip_address_range_id` (String) ID of the non-exclusive IP address range to allocate from. Exactly one allocation source must be set.
+- `nat_inside_id` (String) UUID of the inside IP address for which this address is the NAT outside IP.
 - `prefix_id` (String) ID of the prefix to allocate from. Exactly one of prefix_id or ip_address_range_id must be set.
+- `role_id` (String) Role UUID associated with the IP address.
+- `tags_ids` (Set of String) Tags (UUIDs) associated with the IP address.
+- `tenant_id` (String) Tenant UUID associated with the IP address.
+- `type` (String) Type of the IP address (`host`, `dhcp`, or `slaac`; `slaac` is only valid for IPv6 addresses).
 
 ### Read-Only
 
 - `address` (String) Allocated IP address in CIDR notation.
+- `created` (String) Creation timestamp (RFC3339).
+- `host` (String) IPv4 or IPv6 host address without mask.
 - `id` (String) Allocated IP address UUID.
 - `ip_version` (Number) IP version of the allocated IP address (4 or 6).
+- `mask_length` (Number) Length of the network mask, in bits.
 
 ## Import
 
@@ -68,6 +84,9 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 #!/usr/bin/env sh
-# Available IPs can be imported using an IPs unique ID, e.g. '748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7'
-terraform import nautobot_available_ip_address "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+# Available IPs can be imported using the IP address UUID, e.g. '748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7'
+terraform import nautobot_available_ip_address.example "748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
+
+# Or using '<prefix_id>,<ip_id>'
+terraform import nautobot_available_ip_address.example "3f8f4b3a-7b31-4f2d-9b36-2d2c3b4c5d6e,748ca2dd-a3ac-5bb6-8b4a-276b7e3c33c7"
 ```
