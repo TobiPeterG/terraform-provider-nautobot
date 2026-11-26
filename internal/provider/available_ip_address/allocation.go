@@ -44,12 +44,10 @@ func isDuplicateAllocationError(response *http.Response, formattedError string) 
 
 func (r *AvailableIPAddressResource) allocateIPAddress(
 	ctx context.Context,
-	prefixID, rangeStart, rangeEnd, statusID, dnsName string,
+	prefixID, rangeStart, rangeEnd string,
+	allocReq nb.IPAllocationRequest,
 ) (*nb.IPAddress, error) {
-	body := []nb.IPAllocationRequest{{Status: shared.APIReference(statusID)}}
-	if dnsName != "" {
-		body[0].DnsName = &dnsName
-	}
+	body := []nb.IPAllocationRequest{allocReq}
 
 	for attempt := 0; attempt < allocationMaxRetries; attempt++ {
 		request := r.client.Client.IpamAPI.

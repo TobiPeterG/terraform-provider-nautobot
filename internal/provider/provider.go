@@ -21,6 +21,7 @@ import (
 	clusterpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/cluster"
 	clustertypepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/cluster_type"
 	graphqlpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/graphql"
+	ipaddresspkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/ip_address"
 	iprangepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/ip_address_range"
 	manufacturerpkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/manufacturer"
 	namespacepkg "github.com/nautobot/terraform-provider-nautobot/internal/provider/namespace"
@@ -170,6 +171,7 @@ func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resour
 		availableippkg.NewAvailableIPAddressResource,
 		clusterpkg.NewClusterResource,
 		clustertypepkg.NewClusterTypeResource,
+		ipaddresspkg.NewIPAddressResource,
 		iprangepkg.NewIPAddressRangeResource,
 		manufacturerpkg.NewManufacturerResource,
 		namespacepkg.NewNamespaceResource,
